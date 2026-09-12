@@ -1,0 +1,21 @@
+[project]
+name = "grantsetu-backend"
+version = "0.1.0"
+description = "GrantSetu — NGO grant discovery, drafting and claim verification"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Depends()/Query()/File() in argument defaults is how FastAPI declares
+# dependencies; B008 is a false positive across the whole route layer.
+"app/api/*.py" = ["B008"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

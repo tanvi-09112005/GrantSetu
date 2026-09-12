@@ -1,0 +1,42 @@
+# --- API ---------------------------------------------------------------------
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+pydantic-settings
+python-dotenv
+
+# --- Orchestration / LLM ------------------------------------------------------
+langgraph
+langchain-core
+langchain-google-genai
+
+# --- Database -----------------------------------------------------------------
+psycopg[binary,pool]
+pgvector
+supabase
+
+# --- Retrieval ----------------------------------------------------------------
+# Lexical half of hybrid RAG, computed in-process (plan section 0).
+rank-bm25
+sentence-transformers
+
+# --- Document parsing (Phase 1) ----------------------------------------------
+pdfplumber
+pypdf
+pytesseract
+pillow
+
+# --- Export (Phase 5) ---------------------------------------------------------
+python-docx
+reportlab
+
+# --- Scraping -----------------------------------------------------------------
+beautifulsoup4>=4.12
+lxml>=5.0
+requests>=2.31
+
+# --- Dev ----------------------------------------------------------------------
+pytest
+httpx
+ruff

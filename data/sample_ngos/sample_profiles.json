@@ -1,0 +1,89 @@
+[
+  {
+    "id": "cry-india",
+    "name": "Child Rights and You (CRY)",
+    "darpan_id": "DL/2009/0014766",
+    "sectors": [
+      "education",
+      "health",
+      "child_welfare",
+      "social_welfare"
+    ],
+    "location": "New Delhi, Delhi",
+    "registered_on": "1979-04-18",
+    "reg_12a": "AAATC1234A",
+    "reg_80g": "AAATC1234B",
+    "reg_fcra": "231650035",
+    "fcra_status": "active",
+    "fcra_valid_until": "2028-09-30",
+    "mission": "To enable individuals and organizations to collaborate and build an India where all children enjoy their rights to happy, healthy and creative childhoods.",
+    "pdf_urls": [
+      "https://www.cry.org/wp-content/uploads/CRY-Annual-Report-2022-23.pdf"
+    ]
+  },
+  {
+    "id": "pratham-education",
+    "name": "Pratham Education Foundation",
+    "darpan_id": "MH/2017/0151740",
+    "sectors": [
+      "education",
+      "skill_development",
+      "technology"
+    ],
+    "location": "Mumbai, Maharashtra",
+    "registered_on": "1994-08-15",
+    "reg_12a": "AAATP1234A",
+    "reg_80g": "AAATP1234B",
+    "reg_fcra": "083780582",
+    "fcra_status": "active",
+    "fcra_valid_until": "2027-10-31",
+    "mission": "Every child in school and learning well. Pratham is an innovative learning organization created to improve the quality of education in India.",
+    "pdf_urls": [
+      "https://pratham.org/wp-content/uploads/2023/11/Pratham-Annual-Report-2022-23.pdf"
+    ]
+  },
+  {
+    "id": "goonj",
+    "name": "Goonj",
+    "darpan_id": "DL/2010/0034458",
+    "sectors": [
+      "rural_development",
+      "disaster_relief",
+      "social_welfare",
+      "environment"
+    ],
+    "location": "New Delhi, Delhi",
+    "registered_on": "1999-02-23",
+    "reg_12a": "AAATG1234A",
+    "reg_80g": "AAATG1234B",
+    "reg_fcra": "231660487",
+    "fcra_status": "active",
+    "fcra_valid_until": "2026-12-31",
+    "mission": "To reposition discard as a massive neglected resource for rural development and humanitarian aid across India.",
+    "pdf_urls": [
+      "https://goonj.org/wp-content/uploads/2023/10/Goonj-Annual-Report-2022-2023.pdf"
+    ]
+  },
+  {
+    "id": "akshaya-patra",
+    "name": "The Akshaya Patra Foundation",
+    "darpan_id": "KA/2017/0157077",
+    "sectors": [
+      "nutrition",
+      "education",
+      "child_welfare",
+      "health"
+    ],
+    "location": "Bengaluru, Karnataka",
+    "registered_on": "2000-06-19",
+    "reg_12a": "AAATA1234A",
+    "reg_80g": "AAATA1234B",
+    "reg_fcra": "094420875",
+    "fcra_status": "active",
+    "fcra_valid_until": "2029-03-31",
+    "mission": "No child in India shall be deprived of education because of hunger through the implementation of PM POSHAN (Mid-Day Meal) scheme.",
+    "pdf_urls": [
+      "https://www.akshayapatra.org/assets/reports/Annual-Report-2022-23.pdf"
+    ]
+  }
+]
