@@ -60,3 +60,35 @@ export const discoverGrants = (ngoId, topK = 5, query = '') =>
 export const checkEligibility = (ngoId, grantId) =>
   api.post('/eligibility/check', { ngo_id: ngoId, grant_id: grantId }).then((r) => r.data)
 
+// Proposals & Drafting (Phase 3)
+export const getTemplates = () => api.get('/proposals/templates').then((r) => r.data)
+
+export const generateProposal = (ngoId, grantId, templateType = 'standard', forceRegenerate = false) =>
+  api.post('/proposals/generate', {
+    ngo_id: ngoId,
+    grant_id: grantId,
+    template_type: templateType,
+    force_regenerate: forceRegenerate,
+  }).then((r) => r.data)
+
+export const batchGenerateProposals = (ngoId, grantIds, templateType = 'standard', forceRegenerate = false) =>
+  api.post('/proposals/batch-generate', {
+    ngo_id: ngoId,
+    grant_ids: grantIds,
+    template_type: templateType,
+    force_regenerate: forceRegenerate,
+  }).then((r) => r.data)
+
+export const getProposal = (proposalId) =>
+  api.get(`/proposals/${proposalId}`).then((r) => r.data)
+
+export const reviseProposal = (proposalId, sections) =>
+  api.post(`/proposals/${proposalId}/revise`, { sections }).then((r) => r.data)
+
+export const exportProposal = (proposalId, format = 'markdown') =>
+  api.get(`/proposals/${proposalId}/export`, { params: { format } }).then((r) => r.data)
+
+export const verifyProposal = (proposalId) =>
+  api.post(`/proposals/${proposalId}/verify`).then((r) => r.data)
+
+

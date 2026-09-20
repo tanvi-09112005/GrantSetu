@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { discoverGrants, checkEligibility } from '../lib/api'
 import {
   Compass,
@@ -19,7 +19,13 @@ import {
   Globe,
 } from 'lucide-react'
 
-export default function GrantDiscoveryCard({ ngoId, ngoProfile }) {
+export default function GrantDiscoveryCard({
+  ngoId,
+  ngoProfile,
+  onDraftProposal,
+  onBatchDraft,
+  onResultsLoaded,
+}) {
   const [query, setQuery] = useState('')
   const [topK, setTopK] = useState(8)
   const [loading, setLoading] = useState(false)
@@ -27,10 +33,27 @@ export default function GrantDiscoveryCard({ ngoId, ngoProfile }) {
   const [results, setResults] = useState([])
   const [queryUsed, setQueryUsed] = useState(null)
   const [filterType, setFilterType] = useState('all') // all, eligible, govt, csr, international
+  const [selectedGrantIds, setSelectedGrantIds] = useState([])
 
   // Eligibility checking states
   const [checkingId, setCheckingId] = useState(null)
   const [eligibilityResults, setEligibilityResults] = useState({})
+
+  const toggleSelectGrant = (grantId) => {
+    setSelectedGrantIds((prev) =>
+      prev.includes(grantId)
+        ? prev.filter((id) => id !== grantId)
+        : [...prev, grantId]
+    )
+  }
+
+  const selectAllFiltered = () => {
+    setSelectedGrantIds(filteredResults.map((g) => g.id))
+  }
+
+  const clearSelection = () => {
+    setSelectedGrantIds([])
+  }
 
   const handleDiscover = async (e) => {
     if (e) e.preventDefault()
@@ -47,6 +70,9 @@ export default function GrantDiscoveryCard({ ngoId, ngoProfile }) {
       const grants = data.results || []
       setResults(grants)
       setQueryUsed(data.query)
+      if (onResultsLoaded) {
+        onResultsLoaded(grants)
+      }
 
       // Auto-evaluate eligibility for the surfaced grants in the background for a smooth UX
       grants.forEach(async (g) => {
@@ -196,32 +222,56 @@ export default function GrantDiscoveryCard({ ngoId, ngoProfile }) {
           )}
         </form>
 
-        {/* Filter Pills */}
+        {/* Filter Pills & Selection Controls */}
         {results.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-neutral-100 mt-4">
-            <span className="text-xs text-neutral-500 font-medium flex items-center gap-1 mr-1">
-              <Filter className="size-3" /> Filters:
-            </span>
-            {[
-              { id: 'all', label: `All Matches (${results.length})` },
-              { id: 'eligible', label: 'Eligible Only' },
-              { id: 'govt', label: 'Government (GoI)' },
-              { id: 'csr', label: 'CSR Grants' },
-              { id: 'international', label: 'International' },
-            ].map((f) => (
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-4 border-t border-neutral-100 mt-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-neutral-500 font-medium flex items-center gap-1 mr-1">
+                <Filter className="size-3" /> Filters:
+              </span>
+              {[
+                { id: 'all', label: `All Matches (${results.length})` },
+                { id: 'eligible', label: 'Eligible Only' },
+                { id: 'govt', label: 'Government (GoI)' },
+                { id: 'csr', label: 'CSR Grants' },
+                { id: 'international', label: 'International' },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setFilterType(f.id)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
+                    filterType === f.id
+                      ? 'bg-neutral-900 text-white'
+                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2 text-xs">
               <button
-                key={f.id}
                 type="button"
-                onClick={() => setFilterType(f.id)}
-                className={`rounded-lg px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
-                  filterType === f.id
-                    ? 'bg-neutral-900 text-white'
-                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
-                }`}
+                onClick={selectAllFiltered}
+                className="text-indigo-600 hover:text-indigo-800 font-medium cursor-pointer"
               >
-                {f.label}
+                Select All Shown ({filteredResults.length})
               </button>
-            ))}
+              {selectedGrantIds.length > 0 && (
+                <>
+                  <span className="text-neutral-300">|</span>
+                  <button
+                    type="button"
+                    onClick={clearSelection}
+                    className="text-neutral-500 hover:text-neutral-700 cursor-pointer"
+                  >
+                    Clear ({selectedGrantIds.length})
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -233,34 +283,49 @@ export default function GrantDiscoveryCard({ ngoId, ngoProfile }) {
             const verdict = eligibilityResults[grant.id]
             const isChecking = checkingId === grant.id
 
+            const isSelected = selectedGrantIds.includes(grant.id)
+
             return (
               <div
                 key={grant.id}
-                className="rounded-xl border border-neutral-200 bg-white p-5 shadow-2xs hover:border-indigo-300 transition"
+                className={`rounded-xl border bg-white p-5 shadow-2xs transition ${
+                  isSelected
+                    ? 'border-indigo-500 ring-2 ring-indigo-500/10'
+                    : 'border-neutral-200 hover:border-indigo-300'
+                }`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                  <div className="space-y-1.5 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {getFunderTag(grant.funder_type)}
-                      <span className="text-xs font-medium text-neutral-600 flex items-center gap-1">
-                        <Building2 className="size-3 text-neutral-400" />
-                        {grant.funder_name}
-                      </span>
-                      {grant.deadline && (
-                        <span className="text-xs text-neutral-500 flex items-center gap-1">
-                          <Calendar className="size-3 text-neutral-400" />
-                          Deadline: {grant.deadline}
+                  <div className="flex items-start gap-3 flex-1">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelectGrant(grant.id)}
+                      title="Select grant for proposal drafting"
+                      className="mt-1 size-4 rounded border-neutral-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {getFunderTag(grant.funder_type)}
+                        <span className="text-xs font-medium text-neutral-600 flex items-center gap-1">
+                          <Building2 className="size-3 text-neutral-400" />
+                          {grant.funder_name}
                         </span>
-                      )}
+                        {grant.deadline && (
+                          <span className="text-xs text-neutral-500 flex items-center gap-1">
+                            <Calendar className="size-3 text-neutral-400" />
+                            Deadline: {grant.deadline}
+                          </span>
+                        )}
+                      </div>
+
+                      <h4 className="text-base font-bold text-neutral-900 leading-snug">
+                        {grant.title}
+                      </h4>
+
+                      <p className="text-xs text-neutral-600 line-clamp-2">
+                        {grant.description}
+                      </p>
                     </div>
-
-                    <h4 className="text-base font-bold text-neutral-900 leading-snug">
-                      {grant.title}
-                    </h4>
-
-                    <p className="text-xs text-neutral-600 line-clamp-2">
-                      {grant.description}
-                    </p>
                   </div>
 
                   <div className="flex sm:flex-col items-end justify-between sm:justify-start gap-1 shrink-0">
@@ -392,7 +457,7 @@ export default function GrantDiscoveryCard({ ngoId, ngoProfile }) {
 
                     <button
                       type="button"
-                      onClick={() => alert(`Drafting workflow for "${grant.title}" will open in Phase 3!`)}
+                      onClick={() => onDraftProposal && onDraftProposal(grant)}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white transition shadow-2xs cursor-pointer"
                     >
                       <FileEdit className="size-3.5" />
@@ -414,6 +479,48 @@ export default function GrantDiscoveryCard({ ngoId, ngoProfile }) {
             </p>
           </div>
         )
+      )}
+
+      {/* Floating Bottom Batch Action Bar */}
+      {selectedGrantIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white px-5 py-3 rounded-2xl shadow-xl border border-neutral-700 flex items-center gap-4 text-xs animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <span className="flex size-5 items-center justify-center rounded-full bg-indigo-600 text-white font-bold text-[11px]">
+              {selectedGrantIds.length}
+            </span>
+            <span className="font-semibold text-neutral-100">
+              {selectedGrantIds.length === 1
+                ? '1 Grant Selected'
+                : `${selectedGrantIds.length} Grants Selected`}
+            </span>
+          </div>
+
+          <div className="h-4 w-px bg-neutral-700" />
+
+          <button
+            type="button"
+            onClick={() => {
+              const selected = results.filter((g) => selectedGrantIds.includes(g.id))
+              if (onBatchDraft) {
+                onBatchDraft(selected)
+              } else if (onDraftProposal && selected.length > 0) {
+                onDraftProposal(selected[0])
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 px-4 py-2 font-semibold text-white transition shadow-sm cursor-pointer"
+          >
+            <Sparkles className="size-3.5" />
+            Draft Proposals for Selected ({selectedGrantIds.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={clearSelection}
+            className="text-neutral-400 hover:text-white transition cursor-pointer font-medium text-xs"
+          >
+            Clear
+          </button>
+        </div>
       )}
     </div>
   )

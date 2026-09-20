@@ -85,5 +85,26 @@
     "pdf_urls": [
       "https://www.akshayapatra.org/assets/reports/Annual-Report-2022-23.pdf"
     ]
+  },
+  {
+    "id": "eoto-india",
+    "name": "Each One Teach One Charitable Foundation (EOTO)",
+    "darpan_id": "MH/2016/0104829",
+    "sectors": [
+      "education",
+      "child_welfare",
+      "digital_literacy",
+      "skill_development"
+    ],
+    "location": "Mumbai, Maharashtra",
+    "registered_on": "1990-06-01",
+    "reg_12a": "AAATE1234A",
+    "reg_80g": "AAATE1234B",
+    "reg_fcra": "083781290",
+    "fcra_status": "active",
+    "fcra_valid_until": "2028-12-31",
+    "mission": "Provision of educational and other support services to underprivileged children, enhancing foundational literacy, numeracy, digital literacy, and holistic life skills.",
+    "iso_certification": "ISO 9001:2015",
+    "pdf_urls": []
   }
 ]

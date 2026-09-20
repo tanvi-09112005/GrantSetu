@@ -29,11 +29,13 @@ class Settings(BaseSettings):
 
     # --- Gemini -------------------------------------------------------------
     google_api_key: str = ""
-    # Gemini free tier configuration:
-    # Both tiers default to gemini-3.6-flash so free tier API keys are used throughout
-    # without hitting Pro tier 2 RPM limits or paid billing.
-    gemini_pro_model: str = "gemini-3.6-flash"
-    gemini_flash_model: str = "gemini-3.6-flash"
+    gemini_pro_model: str = "gemini-3.5-flash"
+    gemini_flash_model: str = "gemini-3.5-flash"
+
+    # --- Groq & Multi-Provider ----------------------------------------------
+    llm_provider: Literal["auto", "gemini", "groq"] = "auto"
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
 
     # --- Embeddings ---------------------------------------------------------
     embedding_model: str = "BAAI/bge-m3"

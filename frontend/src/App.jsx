@@ -1,10 +1,11 @@
-﻿import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { getHealth, listProfiles, listDocuments } from './lib/api'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
 import AuthModal from './components/AuthModal'
 import NGOProfileCard from './components/NGOProfileCard'
 import DocumentUploadCard from './components/DocumentUploadCard'
 import GrantDiscoveryCard from './components/GrantDiscoveryCard'
+import ProposalWorkspace from './components/ProposalWorkspace'
 import {
   Building2,
   FileText,
@@ -27,8 +28,25 @@ export default function App() {
   const [health, setHealth] = useState(null)
   const [profiles, setProfiles] = useState([])
   const [activeProfile, setActiveProfile] = useState(null)
-  const [activeSection, setActiveSection] = useState('discovery') // 'discovery' | 'documents' | 'profile'
+  const [activeSection, setActiveSection] = useState('discovery') // 'discovery' | 'documents' | 'proposal' | 'profile'
   const [docCount, setDocCount] = useState(0)
+  const [activeGrant, setActiveGrant] = useState(null)
+  const [discoveredGrants, setDiscoveredGrants] = useState([])
+  const [batchGrants, setBatchGrants] = useState([])
+
+  const handleDraftProposal = (grant) => {
+    setActiveGrant(grant)
+    setBatchGrants([grant])
+    setActiveSection('proposal')
+  }
+
+  const handleBatchDraft = (grants) => {
+    if (grants && grants.length > 0) {
+      setActiveGrant(grants[0])
+      setBatchGrants(grants)
+      setActiveSection('proposal')
+    }
+  }
 
   // Load auth state from Supabase
   useEffect(() => {
@@ -160,7 +178,7 @@ export default function App() {
       {/* Main Workspace */}
       <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-6">
         {/* At-a-glance Status Banner */}
-        <div className="mb-6 rounded-2xl bg-white border border-neutral-200 p-5 shadow-xs">
+        <div className="mb-6 rounded-2xl bg-white border border-neutral-200 p-5 shadow-xs no-print">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -179,7 +197,8 @@ export default function App() {
                 </strong>{' '}
                 · Reg Date:{' '}
                 <span className="text-neutral-700">
-                  {activeProfile?.registered_on || '1979-04-18'} (47+ yrs vintage)
+                  {activeProfile?.registered_on || '1979-04-18'} (
+                  {2026 - parseInt((activeProfile?.registered_on || '1979').slice(0, 4))}+ yrs vintage)
                 </span>
               </p>
             </div>
@@ -228,7 +247,7 @@ export default function App() {
         </div>
 
         {/* Realistic Portal Navigation Tabs */}
-        <div className="flex gap-2 border-b border-neutral-200 mb-6 text-sm font-semibold overflow-x-auto pb-1">
+        <div className="flex gap-2 border-b border-neutral-200 mb-6 text-sm font-semibold overflow-x-auto pb-1 no-print">
           <button
             type="button"
             onClick={() => setActiveSection('discovery')}
@@ -257,6 +276,19 @@ export default function App() {
 
           <button
             type="button"
+            onClick={() => setActiveSection('proposal')}
+            className={`flex items-center gap-2 pb-3 px-3.5 border-b-2 transition cursor-pointer shrink-0 ${
+              activeSection === 'proposal'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-neutral-500 hover:text-neutral-800'
+            }`}
+          >
+            <Sparkles className="size-4" />
+            3. Proposal Workspace
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveSection('profile')}
             className={`flex items-center gap-2 pb-3 px-3.5 border-b-2 transition cursor-pointer shrink-0 ${
               activeSection === 'profile'
@@ -265,7 +297,7 @@ export default function App() {
             }`}
           >
             <Building2 className="size-4" />
-            3. Organization Details & Darpan ID
+            4. Organization Details & Darpan ID
           </button>
         </div>
 
@@ -289,7 +321,18 @@ export default function App() {
         )}
 
         {activeSection === 'discovery' && (
-          <GrantDiscoveryCard ngoId={activeProfile?.id} ngoProfile={activeProfile} />
+          <GrantDiscoveryCard
+            ngoId={activeProfile?.id}
+            ngoProfile={activeProfile}
+            onDraftProposal={handleDraftProposal}
+            onBatchDraft={handleBatchDraft}
+            onResultsLoaded={(grants) => {
+              setDiscoveredGrants(grants)
+              if (!activeGrant && grants.length > 0) {
+                setActiveGrant(grants[0])
+              }
+            }}
+          />
         )}
 
         {activeSection === 'documents' && (
@@ -297,6 +340,22 @@ export default function App() {
             ngoId={activeProfile?.id}
             ngoProfile={activeProfile}
             onDocumentCountChange={(c) => setDocCount(c)}
+          />
+        )}
+
+        {activeSection === 'proposal' && (
+          <ProposalWorkspace
+            activeNgo={
+              activeProfile || {
+                id: 'b6b3f1a9-01ed-4def-8b14-58e4c3e0863e',
+                name: 'Child Rights and You (CRY)',
+                darpan_id: 'DL/2009/0014766',
+              }
+            }
+            activeGrant={activeGrant}
+            batchGrants={batchGrants}
+            grants={discoveredGrants}
+            onSelectGrant={(grant) => setActiveGrant(grant)}
           />
         )}
 
