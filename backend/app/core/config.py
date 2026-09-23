@@ -29,6 +29,7 @@ class Settings(BaseSettings):
 
     # --- Gemini -------------------------------------------------------------
     google_api_key: str = ""
+    # Gemini free tier configuration:
     gemini_pro_model: str = "gemini-3.5-flash"
     gemini_flash_model: str = "gemini-3.5-flash"
 
