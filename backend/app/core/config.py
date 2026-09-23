@@ -32,8 +32,8 @@ class Settings(BaseSettings):
     # Gemini free tier configuration:
     # Both tiers default to gemini-3.6-flash so free tier API keys are used throughout
     # without hitting Pro tier 2 RPM limits or paid billing.
-    gemini_pro_model: str = "gemini-3.6-flash"
-    gemini_flash_model: str = "gemini-3.6-flash"
+    gemini_pro_model: str = "gemini-3.1-pro"
+    gemini_flash_model: str = "gemini-3.5-flash-lite"
 
     # --- Embeddings ---------------------------------------------------------
     embedding_model: str = "BAAI/bge-m3"
