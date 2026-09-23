@@ -30,13 +30,13 @@ class Settings(BaseSettings):
     # --- Gemini -------------------------------------------------------------
     google_api_key: str = ""
     # Gemini free tier configuration:
-    gemini_pro_model: str = "gemini-3.5-flash"
-    gemini_flash_model: str = "gemini-3.5-flash"
+    gemini_pro_model: str = "gemini-3.5-flash-lite"
+    gemini_flash_model: str = "gemini-3.5-flash-lite"
 
     # --- Groq & Multi-Provider ----------------------------------------------
     llm_provider: Literal["auto", "gemini", "groq"] = "auto"
     groq_api_key: str = ""
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_model: str = "openai/gpt-oss-120b"
 
     # --- Embeddings ---------------------------------------------------------
     embedding_model: str = "BAAI/bge-m3"
