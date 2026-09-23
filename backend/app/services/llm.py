@@ -67,13 +67,14 @@ def invoke_with_fallback(
     temperature: float = 0.2,
 ) -> str:
     """Invoke Gemini with automatic fallback across Gemini 3.x models and multiple API keys."""
-    primary_model = _MODEL_FOR_TIER.get(tier, "gemini-3.5-flash")
-    # Strictly modern Gemini 3.x models — prioritize stable models over overloaded preview models
+    primary_model = _MODEL_FOR_TIER.get(tier, "gemini-3.5-flash-lite")
+    # Strictly modern Gemini 3.x models — prioritize active and high-quota models
     candidate_models = [
         primary_model,
-        "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-3.1-flash-lite",
         "gemini-3.8-flash",
         "gemini-3.7-flash",
     ]
@@ -120,7 +121,7 @@ def invoke_with_fallback(
                     google_api_key=api_key,
                     temperature=temperature,
                     max_retries=1,
-                    timeout=10.0,
+                    timeout=60.0,
                 )
                 resp = llm.invoke(prompt)
                 content = resp.content
@@ -190,8 +191,17 @@ def parse_json_response(text: str) -> Any:
     candidate = text.strip()
     fenced = _JSON_FENCE.search(candidate)
     if fenced:
-        candidate = fenced.group(1)
+        candidate = fenced.group(1).strip()
     try:
-        return json.loads(candidate)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"model did not return valid JSON: {text[:500]!r}") from exc
+        return json.loads(candidate, strict=False)
+    except Exception:
+        # If standard json.loads failed, try extracting between first '{' and last '}'
+        first_brace = candidate.find("{")
+        last_brace = candidate.rfind("}")
+        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+            sub = candidate[first_brace : last_brace + 1]
+            try:
+                return json.loads(sub, strict=False)
+            except Exception:
+                pass
+        raise ValueError(f"model did not return valid JSON: {text[:500]!r}")

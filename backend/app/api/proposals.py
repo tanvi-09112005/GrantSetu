@@ -124,7 +124,7 @@ def generate(
     resolved_ngo_id, ngo_profile = _resolve_ngo_profile(payload.ngo_id)
 
     # Optional ownership assert if user is logged in and not demo
-    if user:
+    if user and isinstance(user, dict) and "id" in user:
         try:
             owned_ngo(resolved_ngo_id, user)
         except HTTPException:
@@ -165,7 +165,7 @@ def generate(
                     cached_sections = json.loads(cached_sections)
                 except Exception:
                     cached_sections = {}
-            if cached_sections and isinstance(cached_sections, dict):
+            if cached_sections and isinstance(cached_sections, dict) and any(v.strip() for v in cached_sections.values() if isinstance(v, str)):
                 logger.info("Serving proposal from DB cache (0 API calls): %s", existing_prop["id"])
                 verdicts, rate = _fetch_verification_results(str(existing_prop["id"]))
                 return ProposalResponse(
@@ -193,6 +193,14 @@ def generate(
 
     result_state = draft_proposal(state)
     sections = result_state.get("draft_sections", {})
+
+    if not sections or not any(v.strip() for v in sections.values() if isinstance(v, str)):
+        err_msg = "; ".join(result_state.get("errors", [])) or "LLM failed to generate proposal content"
+        logger.error("Proposal drafting produced no content: %s", err_msg)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Proposal drafting failed: {err_msg}. Please retry.",
+        )
 
     # Persist proposal draft with auto-incrementing version per application
     prop_row = pool.fetch_one(

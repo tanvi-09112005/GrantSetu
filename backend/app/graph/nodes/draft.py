@@ -514,23 +514,23 @@ Respond ONLY with valid JSON:
         try:
             raw_response = _call_llm(prompt, tier="flash", temperature=0.2)
             parsed = parse_json_response(raw_response)
-            if isinstance(parsed, dict):
+            if isinstance(parsed, dict) and any(parsed.values()):
                 for k, v in parsed.items():
-                    sections[k] = str(v).strip()
-                    logger.info("Drafted section %s (%d chars)", k, len(str(v)))
-            else:
-                errors.append(f"draft_proposal: expected dict response, got {type(parsed)}")
+                    if v and str(v).strip():
+                        sections[k] = str(v).strip()
+                        logger.info("Drafted section %s (%d chars)", k, len(str(v)))
         except Exception as e:
-            logger.error("Template drafting failed: %s", e)
+            logger.warning("Template drafting failed (%s); falling through to batched drafting", e)
             errors.append(f"draft_proposal: template drafting failed ({e})")
 
-        return {
-            "draft_sections": sections,
-            "budget_table": budget_table,
-            "sections_to_revise": [],
-            "status": "drafted",
-            "errors": errors,
-        }
+        if sections and any(v.strip() for v in sections.values() if isinstance(v, str)):
+            return {
+                "draft_sections": sections,
+                "budget_table": budget_table,
+                "sections_to_revise": [],
+                "status": "drafted",
+                "errors": errors,
+            }
 
     # Batched drafting (by temperature tier)
     active_targets = targets or DEFAULT_SECTIONS
