@@ -92,3 +92,10 @@ export const verifyProposal = (proposalId) =>
   api.post(`/proposals/${proposalId}/verify`).then((r) => r.data)
 
 
+
+// NGO registration wizard (Task 1) — multipart: form fields + certificate PDFs.
+export const registerNgo = (formData) =>
+  api.post('/ngo/register', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data)
+  

@@ -3,6 +3,7 @@ import { getHealth, listProfiles, listDocuments } from './lib/api'
 import { supabase, isSupabaseConfigured } from './lib/supabase'
 import AuthModal from './components/AuthModal'
 import NGOProfileCard from './components/NGOProfileCard'
+import NgoRegisterWizard from './components/NgoRegisterWizard'
 import DocumentUploadCard from './components/DocumentUploadCard'
 import GrantDiscoveryCard from './components/GrantDiscoveryCard'
 import ProposalWorkspace from './components/ProposalWorkspace'
@@ -22,9 +23,52 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 
+// ---------------------------------------------------------------------------
+// Banner helpers: derive what to show from the REAL profile, never from defaults.
+// ---------------------------------------------------------------------------
+const VERIFICATION_BADGES = {
+  document_matched: {
+    label: 'Statutorily Verified NGO ✓',
+    cls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    hint: 'Darpan ID format valid and found inside the uploaded certificate',
+  },
+  format_verified: {
+    label: 'Format verified · document review pending',
+    cls: 'bg-amber-50 text-amber-700 border-amber-200',
+    hint: 'Darpan ID format valid and certificate uploaded, but the ID could not be read from the PDF',
+  },
+  pending_review: {
+    label: 'Verification pending',
+    cls: 'bg-neutral-100 text-neutral-600 border-neutral-200',
+    hint: 'No verification proof on file yet',
+  },
+  rejected: {
+    label: 'Verification rejected',
+    cls: 'bg-red-50 text-red-700 border-red-200',
+    hint: 'Please re-upload a valid certificate',
+  },
+}
+
+function incomeTaxLabel(profile) {
+  // Wizard sets has_12a / has_80g; profiles made via the older form store a number in reg_12a / reg_80g.
+  const has12a = Boolean(profile?.has_12a || profile?.reg_12a)
+  const has80g = Boolean(profile?.has_80g || profile?.reg_80g)
+  if (has12a && has80g) return { text: '12A & 80G', ok: true }
+  if (has12a) return { text: '12A only', ok: true }
+  if (has80g) return { text: '80G only', ok: true }
+  return { text: 'None declared', ok: false }
+}
+
+function vintageLabel(profile) {
+  const year = profile?.incorporation_year || parseInt((profile?.registered_on || '').slice(0, 4), 10)
+  if (!year || Number.isNaN(year)) return null
+  return `Inc. ${year} (${Math.max(0, new Date().getFullYear() - year)} yrs)`
+}
+
 export default function App() {
   const [user, setUser] = useState(null)
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [showRegister, setShowRegister] = useState(false)
   const [health, setHealth] = useState(null)
   const [profiles, setProfiles] = useState([])
   const [activeProfile, setActiveProfile] = useState(null)
@@ -114,6 +158,17 @@ export default function App() {
     })
   }
 
+  const handleRegistered = async () => {
+    setShowRegister(false)
+    try {
+      const data = await listProfiles()
+      setProfiles(data || [])
+      if (data?.length) setActiveProfile(data[0])
+    } catch (err) {
+      console.error('Failed to load profile after registration:', err)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-neutral-50/60 text-neutral-900 font-sans pb-20">
       {/* Top Header */}
@@ -162,58 +217,103 @@ export default function App() {
                 </button>
               </div>
             ) : (
+              <>
+              <button
+                type="button"
+                onClick={() => setShowRegister(true)}
+                className="rounded-xl border border-indigo-200 bg-white hover:bg-indigo-50 px-4 py-2 text-xs font-semibold text-indigo-700 transition cursor-pointer"
+              >
+                Register your NGO
+              </button>
               <button
                 type="button"
                 onClick={() => setShowAuthModal(true)}
                 className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-xs font-semibold text-white transition shadow-sm flex items-center gap-1.5 cursor-pointer"
               >
                 <User className="size-3.5" />
-                Sign In with 1-Click Demo
+                Sign In
               </button>
+              </>
             )}
           </div>
         </div>
       </header>
 
+      {showRegister && (
+        <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-8">
+          <NgoRegisterWizard onComplete={handleRegistered} onCancel={() => setShowRegister(false)} />
+        </main>
+      )}
+
       {/* Main Workspace */}
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-6">
+      <main className={`mx-auto max-w-6xl px-4 sm:px-6 pt-6 ${showRegister ? 'hidden' : ''}`}>
         {/* At-a-glance Status Banner */}
         <div className="mb-6 rounded-2xl bg-white border border-neutral-200 p-5 shadow-xs no-print">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-neutral-900">
-                  {activeProfile?.name || 'Child Rights and You (CRY)'}
+                  {activeProfile?.name ||
+                    (user ? 'No NGO registered yet' : 'Sign in or register your NGO')}
                 </h2>
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                  <ShieldCheck className="size-3" />
-                  NITI Aayog Registered
-                </span>
+                {activeProfile && (() => {
+                  const badge =
+                    VERIFICATION_BADGES[activeProfile.verification_status] ||
+                    VERIFICATION_BADGES.pending_review
+                  return (
+                    <span
+                      title={badge.hint}
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold border ${badge.cls}`}
+                    >
+                      <ShieldCheck className="size-3" />
+                      {badge.label}
+                    </span>
+                  )
+                })()}
               </div>
-              <p className="text-xs text-neutral-500">
-                Darpan ID:{' '}
-                <strong className="font-mono text-neutral-800">
-                  {activeProfile?.darpan_id || 'DL/2009/0014766'}
-                </strong>{' '}
-                · Reg Date:{' '}
-                <span className="text-neutral-700">
-                  {activeProfile?.registered_on || '1979-04-18'} (
-                  {2026 - parseInt((activeProfile?.registered_on || '1979').slice(0, 4))}+ yrs vintage)
-                </span>
-              </p>
+              {activeProfile ? (
+                <p className="text-xs text-neutral-500">
+                  Darpan ID:{' '}
+                  <strong className="font-mono text-neutral-800">
+                    {activeProfile.darpan_id || 'Not provided'}
+                  </strong>
+                  {vintageLabel(activeProfile) && (
+                    <> · <span className="text-neutral-700">{vintageLabel(activeProfile)}</span></>
+                  )}
+                  {(activeProfile.district || activeProfile.state) && (
+                    <> · <span className="text-neutral-700">
+                      {[activeProfile.district, activeProfile.state].filter(Boolean).join(', ')}
+                    </span></>
+                  )}
+                </p>
+              ) : (
+                <p className="text-xs text-neutral-500">
+                  {user
+                    ? 'Complete NGO registration to unlock grant discovery and proposals.'
+                    : 'Use “Register your NGO” to create a verified account.'}
+                </p>
+              )}
             </div>
 
             {/* Quick Metrics */}
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <div className="rounded-xl bg-neutral-50 px-3 py-2 border border-neutral-200 text-center">
-                <span className="text-[10px] text-neutral-500 block uppercase font-medium">Income Tax</span>
-                <span className="font-bold text-emerald-700">12A & 80G Active</span>
+                <span className="text-[10px] text-neutral-500 block uppercase font-medium">Income Tax (declared)</span>
+                {(() => {
+                  if (!activeProfile) return <span className="font-bold text-neutral-400">—</span>
+                  const it = incomeTaxLabel(activeProfile)
+                  return (
+                    <span className={`font-bold ${it.ok ? 'text-emerald-700' : 'text-neutral-500'}`}>
+                      {it.text}
+                    </span>
+                  )
+                })()}
               </div>
 
               <div className="rounded-xl bg-neutral-50 px-3 py-2 border border-neutral-200 text-center">
                 <span className="text-[10px] text-neutral-500 block uppercase font-medium">FCRA Status</span>
                 <span className="font-bold text-purple-700 uppercase">
-                  {activeProfile?.fcra_status || 'Active'}
+                  {activeProfile ? (activeProfile.fcra_status || 'unknown').replace(/_/g, ' ') : '—'}
                 </span>
               </div>
 
@@ -305,7 +405,7 @@ export default function App() {
         {!user && (
           <div className="mb-6 rounded-2xl bg-indigo-50 border border-indigo-200 p-4 text-xs text-indigo-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
-              <p className="font-bold text-sm">Demo Mode — Sign In for Personal Workspace</p>
+              <p className="font-bold text-sm">You&apos;re not signed in</p>
               <p className="text-indigo-700 mt-0.5">
                 Sign in to save your own NGO profiles and attach custom compliance filings to your account.
               </p>
@@ -315,7 +415,7 @@ export default function App() {
               onClick={() => setShowAuthModal(true)}
               className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 font-semibold text-xs shadow-xs shrink-0 cursor-pointer"
             >
-              Sign In with 1-Click Demo
+              Sign In
             </button>
           </div>
         )}
@@ -373,8 +473,13 @@ export default function App() {
           onAuthSuccess={(u) => {
             setUser(u)
             setShowAuthModal(false)
+            setShowRegister(false)
           }}
           onClose={() => setShowAuthModal(false)}
+          onRegister={() => {
+            setShowAuthModal(false)
+            setShowRegister(true)
+          }}
         />
       )}
     </div>
