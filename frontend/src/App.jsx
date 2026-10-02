@@ -93,6 +93,7 @@ function AppShell() {
 
   // UI-only state stays here for now; it moves to routes in later steps
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [discoveryCache, setDiscoveryCache] = useState(null)
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
@@ -398,6 +399,8 @@ function AppShell() {
                   setActiveGrant(grants[0])
                 }
               }}
+              cache={discoveryCache?.ngoId === activeProfile?.id ? discoveryCache : null}
+              onCacheChange={(c) => setDiscoveryCache({ ...c, ngoId: activeProfile?.id })}
             />
           </div>
         )}
