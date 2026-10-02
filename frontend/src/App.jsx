@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react'
-import { getHealth, listProfiles, listDocuments } from './lib/api'
-import { supabase, isSupabaseConfigured } from './lib/supabase'
+//import React, { useEffect, useState } from 'react'
+// import { getHealth, listProfiles, listDocuments } from './lib/api'
+// import { supabase, isSupabaseConfigured } from './lib/supabase'
+import React, { useState } from 'react'
+import { AppProvider, useApp } from './context/AppContext'
 import AuthModal from './components/AuthModal'
 import NGOProfileCard from './components/NGOProfileCard'
 import NgoRegisterWizard from './components/NgoRegisterWizard'
@@ -65,105 +67,39 @@ function vintageLabel(profile) {
   return `Inc. ${year} (${Math.max(0, new Date().getFullYear() - year)} yrs)`
 }
 
-export default function App() {
-  const [user, setUser] = useState(null)
+function AppShell() {
+  const {
+    user, setUser, health,
+    profiles, activeProfile, setActiveProfile,
+    docCount, setDocCount,
+    activeGrant, setActiveGrant,
+    discoveredGrants, setDiscoveredGrants,
+    batchGrants,
+    selectGrant, selectBatch,
+    reloadProfiles, handleProfileSaved, handleSignOut,
+  } = useApp()
+
+  // UI-only state stays here for now; it moves to routes in later steps
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showRegister, setShowRegister] = useState(false)
-  const [health, setHealth] = useState(null)
-  const [profiles, setProfiles] = useState([])
-  const [activeProfile, setActiveProfile] = useState(null)
-  const [activeSection, setActiveSection] = useState('discovery') // 'discovery' | 'documents' | 'proposal' | 'profile'
-  const [docCount, setDocCount] = useState(0)
-  const [activeGrant, setActiveGrant] = useState(null)
-  const [discoveredGrants, setDiscoveredGrants] = useState([])
-  const [batchGrants, setBatchGrants] = useState([])
+  const [activeSection, setActiveSection] = useState('discovery')
 
   const handleDraftProposal = (grant) => {
-    setActiveGrant(grant)
-    setBatchGrants([grant])
+    selectGrant(grant)
     setActiveSection('proposal')
   }
 
   const handleBatchDraft = (grants) => {
     if (grants && grants.length > 0) {
-      setActiveGrant(grants[0])
-      setBatchGrants(grants)
+      selectBatch(grants)
       setActiveSection('proposal')
     }
-  }
-
-  // Load auth state from Supabase
-  useEffect(() => {
-    if (!supabase) return
-    supabase.auth.getSession().then(({ data }) => {
-      if (data?.session?.user) {
-        setUser(data.session.user)
-      }
-    })
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-    })
-
-    return () => {
-      authListener?.subscription?.unsubscribe()
-    }
-  }, [])
-
-  // Load health
-  useEffect(() => {
-    getHealth()
-      .then(setHealth)
-      .catch((err) => console.error('Health check failed:', err))
-  }, [])
-
-  // Load user profiles when user signs in
-  useEffect(() => {
-    if (!user) {
-      setProfiles([])
-      setActiveProfile(null)
-      return
-    }
-    listProfiles()
-      .then((data) => {
-        setProfiles(data || [])
-        if (data && data.length > 0 && !activeProfile) {
-          setActiveProfile(data[0])
-        }
-      })
-      .catch((err) => console.error('Failed to list profiles:', err))
-  }, [user])
-
-  // Count documents for active profile
-  useEffect(() => {
-    if (activeProfile?.id) {
-      listDocuments(activeProfile.id)
-        .then((docs) => setDocCount((docs || []).length))
-        .catch(() => setDocCount(0))
-    }
-  }, [activeProfile])
-
-  const handleSignOut = async () => {
-    if (supabase) await supabase.auth.signOut()
-    setUser(null)
-    setActiveProfile(null)
-    setProfiles([])
-  }
-
-  const handleProfileSaved = (saved) => {
-    setActiveProfile(saved)
-    listProfiles().then((data) => {
-      setProfiles(data || [])
-      setActiveProfile(saved)
-    })
   }
 
   const handleRegistered = async () => {
     setShowRegister(false)
     try {
-      const data = await listProfiles()
-      setProfiles(data || [])
-      if (data?.length) setActiveProfile(data[0])
+      await reloadProfiles()
     } catch (err) {
       console.error('Failed to load profile after registration:', err)
     }
@@ -218,21 +154,21 @@ export default function App() {
               </div>
             ) : (
               <>
-              <button
-                type="button"
-                onClick={() => setShowRegister(true)}
-                className="rounded-xl border border-indigo-200 bg-white hover:bg-indigo-50 px-4 py-2 text-xs font-semibold text-indigo-700 transition cursor-pointer"
-              >
-                Register your NGO
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAuthModal(true)}
-                className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-xs font-semibold text-white transition shadow-sm flex items-center gap-1.5 cursor-pointer"
-              >
-                <User className="size-3.5" />
-                Sign In
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setShowRegister(true)}
+                  className="rounded-xl border border-indigo-200 bg-white hover:bg-indigo-50 px-4 py-2 text-xs font-semibold text-indigo-700 transition cursor-pointer"
+                >
+                  Register your NGO
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAuthModal(true)}
+                  className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-xs font-semibold text-white transition shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <User className="size-3.5" />
+                  Sign In
+                </button>
               </>
             )}
           </div>
@@ -351,11 +287,10 @@ export default function App() {
           <button
             type="button"
             onClick={() => setActiveSection('discovery')}
-            className={`flex items-center gap-2 pb-3 px-3.5 border-b-2 transition cursor-pointer shrink-0 ${
-              activeSection === 'discovery'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-neutral-500 hover:text-neutral-800'
-            }`}
+            className={`flex items-center gap-2 pb-3 px-3.5 border-b-2 transition cursor-pointer shrink-0 ${activeSection === 'discovery'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-neutral-500 hover:text-neutral-800'
+              }`}
           >
             <Compass className="size-4" />
             1. Grant Discovery & Eligibility
@@ -364,11 +299,10 @@ export default function App() {
           <button
             type="button"
             onClick={() => setActiveSection('documents')}
-            className={`flex items-center gap-2 pb-3 px-3.5 border-b-2 transition cursor-pointer shrink-0 ${
-              activeSection === 'documents'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-neutral-500 hover:text-neutral-800'
-            }`}
+            className={`flex items-center gap-2 pb-3 px-3.5 border-b-2 transition cursor-pointer shrink-0 ${activeSection === 'documents'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-neutral-500 hover:text-neutral-800'
+              }`}
           >
             <FileText className="size-4" />
             2. Compliance Documents Vault ({docCount})
@@ -377,11 +311,10 @@ export default function App() {
           <button
             type="button"
             onClick={() => setActiveSection('proposal')}
-            className={`flex items-center gap-2 pb-3 px-3.5 border-b-2 transition cursor-pointer shrink-0 ${
-              activeSection === 'proposal'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-neutral-500 hover:text-neutral-800'
-            }`}
+            className={`flex items-center gap-2 pb-3 px-3.5 border-b-2 transition cursor-pointer shrink-0 ${activeSection === 'proposal'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-neutral-500 hover:text-neutral-800'
+              }`}
           >
             <Sparkles className="size-4" />
             3. Proposal Workspace
@@ -390,11 +323,10 @@ export default function App() {
           <button
             type="button"
             onClick={() => setActiveSection('profile')}
-            className={`flex items-center gap-2 pb-3 px-3.5 border-b-2 transition cursor-pointer shrink-0 ${
-              activeSection === 'profile'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-neutral-500 hover:text-neutral-800'
-            }`}
+            className={`flex items-center gap-2 pb-3 px-3.5 border-b-2 transition cursor-pointer shrink-0 ${activeSection === 'profile'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-neutral-500 hover:text-neutral-800'
+              }`}
           >
             <Building2 className="size-4" />
             4. Organization Details & Darpan ID
@@ -483,5 +415,13 @@ export default function App() {
         />
       )}
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <AppProvider>
+      <AppShell />
+    </AppProvider>
   )
 }
