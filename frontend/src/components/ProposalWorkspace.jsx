@@ -40,6 +40,7 @@ export default function ProposalWorkspace({
   onSelectGrant,
   cache,
   onCacheChange,
+  viewModeRequest,
 }) {
   const [selectedGrantId, setSelectedGrantId] = useState(
     cache?.selectedGrantId ??
@@ -93,6 +94,11 @@ export default function ProposalWorkspace({
     })
   }, [selectedGrantId, templateType, batchProposals, proposalData,
     activeSectionKey, editableSections, viewMode, verificationResults, fabricationRate])
+
+  // Route can ask for a specific view (/workspace → editor, /export → audit)
+  useEffect(() => {
+    if (viewModeRequest) setViewMode(viewModeRequest)
+  }, [viewModeRequest])
 
   const selectedGrant =
     grants.find((g) => g.id === selectedGrantId) ||

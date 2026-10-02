@@ -10,6 +10,7 @@ import DocumentUploadCard from './components/DocumentUploadCard'
 import GrantDiscoveryCard from './components/GrantDiscoveryCard'
 import ProposalWorkspace from './components/ProposalWorkspace'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { PipelineStepper, PipelineNav } from './components/PipelineStepper'
 import {
   Building2,
   FileText,
@@ -75,9 +76,10 @@ const SECTION_PATHS = {
   proposal: '/workspace',
   profile: '/profile',
 }
-const PATH_SECTIONS = Object.fromEntries(
-  Object.entries(SECTION_PATHS).map(([section, path]) => [path, section]),
-)
+const PATH_SECTIONS = {
+  ...Object.fromEntries(Object.entries(SECTION_PATHS).map(([section, path]) => [path, section])),
+  '/export': 'proposal',
+}
 
 function AppShell() {
   const {
@@ -112,7 +114,7 @@ function AppShell() {
   const setActiveSection = (section) => navigate(SECTION_PATHS[section])
   const setShowRegister = (open) => {
     if (open) navigate('/register')
-    else if (pathname === '/register') navigate('/grants') // only leave if we're on the register page
+    else if (pathname === '/register') navigate('/vault') // only leave if we're on the register page
   }
 
   const handleDraftProposal = (grant) => {
@@ -137,7 +139,7 @@ function AppShell() {
   }
 
   if (!activeSection && !showRegister) {
-    return <Navigate to="/grants" replace />
+    return <Navigate to="/vault" replace />
   }
 
   return (
@@ -317,56 +319,7 @@ function AppShell() {
           )}
         </div>
 
-        {/* Realistic Portal Navigation Tabs */}
-        <div className="flex gap-2 border-b border-neutral-200 mb-6 text-sm font-semibold overflow-x-auto pb-1 no-print">
-          <button
-            type="button"
-            onClick={() => setActiveSection('discovery')}
-            className={`flex items-center gap-2 pb-3 px-3.5 border-b-2 transition cursor-pointer shrink-0 ${activeSection === 'discovery'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-neutral-500 hover:text-neutral-800'
-              }`}
-          >
-            <Compass className="size-4" />
-            1. Grant Discovery & Eligibility
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveSection('documents')}
-            className={`flex items-center gap-2 pb-3 px-3.5 border-b-2 transition cursor-pointer shrink-0 ${activeSection === 'documents'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-neutral-500 hover:text-neutral-800'
-              }`}
-          >
-            <FileText className="size-4" />
-            2. Compliance Documents Vault ({docCount})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveSection('proposal')}
-            className={`flex items-center gap-2 pb-3 px-3.5 border-b-2 transition cursor-pointer shrink-0 ${activeSection === 'proposal'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-neutral-500 hover:text-neutral-800'
-              }`}
-          >
-            <Sparkles className="size-4" />
-            3. Proposal Workspace
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveSection('profile')}
-            className={`flex items-center gap-2 pb-3 px-3.5 border-b-2 transition cursor-pointer shrink-0 ${activeSection === 'profile'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-neutral-500 hover:text-neutral-800'
-              }`}
-          >
-            <Building2 className="size-4" />
-            4. Organization Details & Darpan ID
-          </button>
-        </div>
+        <PipelineStepper docCount={docCount} />
 
         {/* Section Content */}
         {!user && (
@@ -432,6 +385,7 @@ function AppShell() {
               onSelectGrant={(grant) => setActiveGrant(grant)}
               cache={proposalCache.current?.ngoId === activeProfile?.id ? proposalCache.current : null}
               onCacheChange={(c) => { proposalCache.current = { ...c, ngoId: activeProfile?.id } }}
+              viewModeRequest={pathname === '/export' ? 'audit' : 'editor'}
             />
           </div>
         )}
@@ -444,6 +398,7 @@ function AppShell() {
             />
           </div>
         )}
+        <PipelineNav />
       </main>
 
       {/* Auth Modal */}
