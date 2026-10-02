@@ -1,7 +1,7 @@
-//import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 // import { getHealth, listProfiles, listDocuments } from './lib/api'
 // import { supabase, isSupabaseConfigured } from './lib/supabase'
-import React, { useState } from 'react'
+//import React, { useState } from 'react'
 import { AppProvider, useApp } from './context/AppContext'
 import AuthModal from './components/AuthModal'
 import NGOProfileCard from './components/NGOProfileCard'
@@ -9,6 +9,7 @@ import NgoRegisterWizard from './components/NgoRegisterWizard'
 import DocumentUploadCard from './components/DocumentUploadCard'
 import GrantDiscoveryCard from './components/GrantDiscoveryCard'
 import ProposalWorkspace from './components/ProposalWorkspace'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import {
   Building2,
   FileText,
@@ -67,6 +68,17 @@ function vintageLabel(profile) {
   return `Inc. ${year} (${Math.max(0, new Date().getFullYear() - year)} yrs)`
 }
 
+// Temporary mapping while the old tab UI still exists. Layout step replaces this.
+const SECTION_PATHS = {
+  discovery: '/grants',
+  documents: '/vault',
+  proposal: '/workspace',
+  profile: '/profile',
+}
+const PATH_SECTIONS = Object.fromEntries(
+  Object.entries(SECTION_PATHS).map(([section, path]) => [path, section]),
+)
+
 function AppShell() {
   const {
     user, setUser, health,
@@ -81,8 +93,25 @@ function AppShell() {
 
   // UI-only state stays here for now; it moves to routes in later steps
   const [showAuthModal, setShowAuthModal] = useState(false)
-  const [showRegister, setShowRegister] = useState(false)
-  const [activeSection, setActiveSection] = useState('discovery')
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
+
+  const activeSection = PATH_SECTIONS[pathname]
+  const showRegister = pathname === '/register'
+
+  const [visited, setVisited] = useState({})
+  useEffect(() => {
+    if (activeSection) setVisited((v) => (v[activeSection] ? v : { ...v, [activeSection]: true }))
+  }, [activeSection])
+  const shown = (key) => activeSection === key
+  const paneCls = (key) => (activeSection === key ? '' : 'hidden')
+
+  // Shims so the existing JSX keeps working unchanged
+  const setActiveSection = (section) => navigate(SECTION_PATHS[section])
+  const setShowRegister = (open) => {
+    if (open) navigate('/register')
+    else if (pathname === '/register') navigate('/grants') // only leave if we're on the register page
+  }
 
   const handleDraftProposal = (grant) => {
     selectGrant(grant)
@@ -103,6 +132,10 @@ function AppShell() {
     } catch (err) {
       console.error('Failed to load profile after registration:', err)
     }
+  }
+
+  if (!activeSection && !showRegister) {
+    return <Navigate to="/grants" replace />
   }
 
   return (
@@ -352,50 +385,58 @@ function AppShell() {
           </div>
         )}
 
-        {activeSection === 'discovery' && (
-          <GrantDiscoveryCard
-            ngoId={activeProfile?.id}
-            ngoProfile={activeProfile}
-            onDraftProposal={handleDraftProposal}
-            onBatchDraft={handleBatchDraft}
-            onResultsLoaded={(grants) => {
-              setDiscoveredGrants(grants)
-              if (!activeGrant && grants.length > 0) {
-                setActiveGrant(grants[0])
+        {shown('discovery') && (
+          <div key={activeProfile?.id || 'none'} className={paneCls('discovery')}>
+            <GrantDiscoveryCard
+              ngoId={activeProfile?.id}
+              ngoProfile={activeProfile}
+              onDraftProposal={handleDraftProposal}
+              onBatchDraft={handleBatchDraft}
+              onResultsLoaded={(grants) => {
+                setDiscoveredGrants(grants)
+                if (!activeGrant && grants.length > 0) {
+                  setActiveGrant(grants[0])
+                }
+              }}
+            />
+          </div>
+        )}
+
+        {shown('documents') && (
+          <div key={activeProfile?.id || 'none'} className={paneCls('documents')}>
+            <DocumentUploadCard
+              ngoId={activeProfile?.id}
+              ngoProfile={activeProfile}
+              onDocumentCountChange={(c) => setDocCount(c)}
+            />
+          </div>
+        )}
+
+        {shown('proposal') && (
+          <div key={activeProfile?.id || 'none'} className={paneCls('proposal')}>
+            <ProposalWorkspace
+              activeNgo={
+                activeProfile || {
+                  id: 'b6b3f1a9-01ed-4def-8b14-58e4c3e0863e',
+                  name: 'Child Rights and You (CRY)',
+                  darpan_id: 'DL/2009/0014766',
+                }
               }
-            }}
-          />
+              activeGrant={activeGrant}
+              batchGrants={batchGrants}
+              grants={discoveredGrants}
+              onSelectGrant={(grant) => setActiveGrant(grant)}
+            />
+          </div>
         )}
 
-        {activeSection === 'documents' && (
-          <DocumentUploadCard
-            ngoId={activeProfile?.id}
-            ngoProfile={activeProfile}
-            onDocumentCountChange={(c) => setDocCount(c)}
-          />
-        )}
-
-        {activeSection === 'proposal' && (
-          <ProposalWorkspace
-            activeNgo={
-              activeProfile || {
-                id: 'b6b3f1a9-01ed-4def-8b14-58e4c3e0863e',
-                name: 'Child Rights and You (CRY)',
-                darpan_id: 'DL/2009/0014766',
-              }
-            }
-            activeGrant={activeGrant}
-            batchGrants={batchGrants}
-            grants={discoveredGrants}
-            onSelectGrant={(grant) => setActiveGrant(grant)}
-          />
-        )}
-
-        {activeSection === 'profile' && (
-          <NGOProfileCard
-            currentProfile={activeProfile}
-            onProfileSaved={handleProfileSaved}
-          />
+        {shown('profile') && (
+          <div key={activeProfile?.id || 'none'} className={paneCls('profile')}>
+            <NGOProfileCard
+              currentProfile={activeProfile}
+              onProfileSaved={handleProfileSaved}
+            />
+          </div>
         )}
       </main>
 
