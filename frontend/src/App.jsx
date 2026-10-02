@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 // import { getHealth, listProfiles, listDocuments } from './lib/api'
 // import { supabase, isSupabaseConfigured } from './lib/supabase'
 //import React, { useState } from 'react'
@@ -94,6 +94,7 @@ function AppShell() {
   // UI-only state stays here for now; it moves to routes in later steps
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [discoveryCache, setDiscoveryCache] = useState(null)
+  const proposalCache = useRef(null)
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
@@ -429,6 +430,8 @@ function AppShell() {
               batchGrants={batchGrants}
               grants={discoveredGrants}
               onSelectGrant={(grant) => setActiveGrant(grant)}
+              cache={proposalCache.current?.ngoId === activeProfile?.id ? proposalCache.current : null}
+              onCacheChange={(c) => { proposalCache.current = { ...c, ngoId: activeProfile?.id } }}
             />
           </div>
         )}

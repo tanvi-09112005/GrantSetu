@@ -38,26 +38,29 @@ export default function ProposalWorkspace({
   batchGrants = [],
   grants = [],
   onSelectGrant,
+  cache,
+  onCacheChange,
 }) {
   const [selectedGrantId, setSelectedGrantId] = useState(
-    activeGrant?.id || grants[0]?.id || '421bc942-7806-4a94-9887-7ed9bde2e254'
+    cache?.selectedGrantId ??
+    (activeGrant?.id || grants[0]?.id || '421bc942-7806-4a94-9887-7ed9bde2e254')
   )
-  const [templateType, setTemplateType] = useState('standard')
+  const [templateType, setTemplateType] = useState(cache?.templateType ?? 'standard')
   const [isGenerating, setIsGenerating] = useState(false)
   const [batchGenerating, setBatchGenerating] = useState(false)
-  const [batchProposals, setBatchProposals] = useState({})
-  const [proposalData, setProposalData] = useState(null)
-  const [activeSectionKey, setActiveSectionKey] = useState('executive_summary')
-  const [editableSections, setEditableSections] = useState({})
+  const [batchProposals, setBatchProposals] = useState(cache?.batchProposals ?? {})
+  const [proposalData, setProposalData] = useState(cache?.proposalData ?? null)
+  const [activeSectionKey, setActiveSectionKey] = useState(cache?.activeSectionKey ?? 'executive_summary')
+  const [editableSections, setEditableSections] = useState(cache?.editableSections ?? {})
   const [isSaving, setIsSaving] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState(null)
 
   // View Mode: 'editor' | 'document' | 'audit'
-  const [viewMode, setViewMode] = useState('editor')
+  const [viewMode, setViewMode] = useState(cache?.viewMode ?? 'editor')
   const [isVerifying, setIsVerifying] = useState(false)
-  const [verificationResults, setVerificationResults] = useState([])
-  const [fabricationRate, setFabricationRate] = useState(0.0)
+  const [verificationResults, setVerificationResults] = useState(cache?.verificationResults ?? [])
+  const [fabricationRate, setFabricationRate] = useState(cache?.fabricationRate ?? 0.0)
 
   // Sync selected grant if activeGrant or grants list updates
   useEffect(() => {
@@ -72,6 +75,7 @@ export default function ProposalWorkspace({
   useEffect(() => {
     if (batchProposals[selectedGrantId]) {
       const prop = batchProposals[selectedGrantId]
+      if (proposalData?.proposal_id && proposalData.proposal_id === prop.proposal_id) return
       setProposalData(prop)
       setEditableSections(prop.sections || {})
       setVerificationResults(prop.verification_results || [])
@@ -80,6 +84,15 @@ export default function ProposalWorkspace({
       setActiveSectionKey(firstKey)
     }
   }, [selectedGrantId, batchProposals])
+
+  // Report state upward so the parent can restore it after navigation
+  useEffect(() => {
+    onCacheChange?.({
+      selectedGrantId, templateType, batchProposals, proposalData,
+      activeSectionKey, editableSections, viewMode, verificationResults, fabricationRate,
+    })
+  }, [selectedGrantId, templateType, batchProposals, proposalData,
+    activeSectionKey, editableSections, viewMode, verificationResults, fabricationRate])
 
   const selectedGrant =
     grants.find((g) => g.id === selectedGrantId) ||
@@ -107,7 +120,7 @@ export default function ProposalWorkspace({
       console.error('Proposal generation failed:', err)
       setError(
         err.response?.data?.detail ||
-          'Failed to generate proposal draft. Ensure backend is running.'
+        'Failed to generate proposal draft. Ensure backend is running.'
       )
     } finally {
       setIsGenerating(false)
@@ -318,13 +331,11 @@ export default function ProposalWorkspace({
                           {cols.map((col, cIdx) => (
                             <td
                               key={cIdx}
-                              className={`px-3.5 py-2.5 border-r border-slate-100 last:border-r-0 ${
-                                isHeader ? 'text-slate-900 font-bold' : 'text-slate-800'
-                              } ${
-                                col.startsWith('₹') || /^\d+$/.test(col)
+                              className={`px-3.5 py-2.5 border-r border-slate-100 last:border-r-0 ${isHeader ? 'text-slate-900 font-bold' : 'text-slate-800'
+                                } ${col.startsWith('₹') || /^\d+$/.test(col)
                                   ? 'text-right font-mono'
                                   : ''
-                              }`}
+                                }`}
                             >
                               {parseInline(col)}
                             </td>
@@ -515,11 +526,10 @@ export default function ProposalWorkspace({
             <button
               onClick={() => handleGenerate(false)}
               disabled={isGenerating || batchGenerating}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-xs ${
-                isGenerating
-                  ? 'bg-indigo-400 text-white cursor-not-allowed'
-                  : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100 cursor-pointer'
-              }`}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-xs ${isGenerating
+                ? 'bg-indigo-400 text-white cursor-not-allowed'
+                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100 cursor-pointer'
+                }`}
             >
               {isGenerating ? (
                 <>
@@ -662,13 +672,12 @@ export default function ProposalWorkspace({
                 </span>
               ) : (
                 <span
-                  className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full border ${
-                    fabricationRate === 0
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                      : fabricationRate <= 0.1
+                  className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full border ${fabricationRate === 0
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    : fabricationRate <= 0.1
                       ? 'bg-blue-50 text-blue-800 border-blue-200'
                       : 'bg-rose-50 text-rose-800 border-rose-200'
-                  }`}
+                    }`}
                 >
                   <ShieldCheck className="w-3 h-3" />
                   {verificationResults.filter((r) => r.verdict === 'supported').length}/{verificationResults.length} Claims Verified
@@ -682,11 +691,10 @@ export default function ProposalWorkspace({
               <button
                 type="button"
                 onClick={() => setViewMode('editor')}
-                className={`px-3 py-1.5 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
-                  viewMode === 'editor'
-                    ? 'bg-white text-indigo-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-3 py-1.5 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${viewMode === 'editor'
+                  ? 'bg-white text-indigo-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <Edit3 className="w-3.5 h-3.5" />
                 Section Editor
@@ -694,11 +702,10 @@ export default function ProposalWorkspace({
               <button
                 type="button"
                 onClick={() => setViewMode('document')}
-                className={`px-3 py-1.5 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
-                  viewMode === 'document'
-                    ? 'bg-white text-indigo-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-3 py-1.5 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${viewMode === 'document'
+                  ? 'bg-white text-indigo-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <Eye className="w-3.5 h-3.5" />
                 Full Formal Document
@@ -706,11 +713,10 @@ export default function ProposalWorkspace({
               <button
                 type="button"
                 onClick={() => setViewMode('audit')}
-                className={`px-3 py-1.5 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
-                  viewMode === 'audit'
-                    ? 'bg-white text-indigo-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-3 py-1.5 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${viewMode === 'audit'
+                  ? 'bg-white text-indigo-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <FileCheck2 className="w-3.5 h-3.5" />
                 Fact-Check Audit ({verificationResults.length})
@@ -771,20 +777,18 @@ export default function ProposalWorkspace({
                     <button
                       key={key}
                       onClick={() => setActiveSectionKey(key)}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors cursor-pointer ${
-                        isActive
-                          ? 'bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200/60 shadow-2xs'
-                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                      }`}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors cursor-pointer ${isActive
+                        ? 'bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200/60 shadow-2xs'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                        }`}
                     >
                       <div className="flex items-center gap-2 truncate">
                         {getSectionIcon(key)}
                         <span className="truncate">{title}</span>
                       </div>
                       <ChevronRight
-                        className={`w-3.5 h-3.5 shrink-0 ${
-                          isActive ? 'text-indigo-600' : 'text-slate-400'
-                        }`}
+                        className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-indigo-600' : 'text-slate-400'
+                          }`}
                       />
                     </button>
                   )
@@ -880,9 +884,8 @@ export default function ProposalWorkspace({
           {/* VIEW MODE 2: Full Formal Proposal Document (Filing Preview & Print-Ready PDF) */}
           <div
             id="printable-proposal-document"
-            className={`p-8 sm:p-12 max-w-4xl mx-auto ${
-              viewMode === 'document' ? 'block' : 'hidden print:block'
-            }`}
+            className={`p-8 sm:p-12 max-w-4xl mx-auto ${viewMode === 'document' ? 'block' : 'hidden print:block'
+              }`}
           >
             {/* Formal Grant Application Letterhead */}
             <div className="pb-8 mb-8 border-b-2 border-slate-800">
@@ -987,9 +990,8 @@ export default function ProposalWorkspace({
                         Fabrication Rate
                       </span>
                       <span
-                        className={`text-xl font-black ${
-                          fabricationRate === 0 ? 'text-emerald-600' : 'text-amber-600'
-                        }`}
+                        className={`text-xl font-black ${fabricationRate === 0 ? 'text-emerald-600' : 'text-amber-600'
+                          }`}
                       >
                         {(fabricationRate * 100).toFixed(1)}%
                       </span>
@@ -1033,13 +1035,12 @@ export default function ProposalWorkspace({
                       return (
                         <div
                           key={idx}
-                          className={`rounded-xl p-4 border text-xs transition-all ${
-                            isSupported
-                              ? 'bg-emerald-50/50 border-emerald-200'
-                              : isPartial
+                          className={`rounded-xl p-4 border text-xs transition-all ${isSupported
+                            ? 'bg-emerald-50/50 border-emerald-200'
+                            : isPartial
                               ? 'bg-amber-50/50 border-amber-200'
                               : 'bg-rose-50/50 border-rose-200'
-                          }`}
+                            }`}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-2.5 flex-1">
@@ -1066,13 +1067,12 @@ export default function ProposalWorkspace({
                             </div>
 
                             <span
-                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase shrink-0 ${
-                                isSupported
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : isPartial
+                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase shrink-0 ${isSupported
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : isPartial
                                   ? 'bg-amber-100 text-amber-800'
                                   : 'bg-rose-100 text-rose-800'
-                              }`}
+                                }`}
                             >
                               {item.verdict.replace('_', ' ')}
                             </span>
