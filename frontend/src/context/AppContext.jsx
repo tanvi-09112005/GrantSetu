@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { getHealth, listProfiles, listDocuments } from '../lib/api'
 import { supabase } from '../lib/supabase'
 
@@ -21,6 +21,9 @@ export function AppProvider({ children }) {
     const [activeGrant, setActiveGrant] = useState(null)
     const [discoveredGrants, setDiscoveredGrants] = useState([])
     const [batchGrants, setBatchGrants] = useState([])
+    const [authModalOpen, setAuthModalOpen] = useState(false)
+    const [discoveryCache, setDiscoveryCache] = useState(null)
+    const proposalCache = useRef(null)
 
     // Auth state from Supabase
     useEffect(() => {
@@ -97,6 +100,11 @@ export function AppProvider({ children }) {
         setUser(null)
         setActiveProfile(null)
         setProfiles([])
+        setActiveGrant(null)
+        setDiscoveredGrants([])
+        setBatchGrants([])
+        setDiscoveryCache(null)
+        proposalCache.current = null
     }
 
     const value = {
@@ -108,6 +116,7 @@ export function AppProvider({ children }) {
         batchGrants,
         selectGrant, selectBatch,
         reloadProfiles, handleProfileSaved, handleSignOut,
+        authModalOpen, setAuthModalOpen, discoveryCache, setDiscoveryCache, proposalCache
     }
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>

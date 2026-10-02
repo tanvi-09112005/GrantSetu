@@ -248,8 +248,8 @@ export default function GrantDiscoveryCard({
                   type="button"
                   onClick={() => setFilterType(f.id)}
                   className={`rounded-lg px-2.5 py-1 text-xs font-medium transition cursor-pointer ${filterType === f.id
-                      ? 'bg-neutral-900 text-white'
-                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                    ? 'bg-neutral-900 text-white'
+                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
                     }`}
                 >
                   {f.label}
@@ -295,8 +295,8 @@ export default function GrantDiscoveryCard({
               <div
                 key={grant.id}
                 className={`rounded-xl border bg-white p-5 shadow-2xs transition ${isSelected
-                    ? 'border-indigo-500 ring-2 ring-indigo-500/10'
-                    : 'border-neutral-200 hover:border-indigo-300'
+                  ? 'border-indigo-500 ring-2 ring-indigo-500/10'
+                  : 'border-neutral-200 hover:border-indigo-300'
                   }`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
@@ -341,8 +341,8 @@ export default function GrantDiscoveryCard({
                     {verdict && (
                       <span
                         className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold mt-1 ${verdict.eligible
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-red-100 text-red-800'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-red-100 text-red-800'
                           }`}
                       >
                         {verdict.eligible ? '✔ ELIGIBLE' : '✘ INELIGIBLE'}
@@ -366,8 +366,8 @@ export default function GrantDiscoveryCard({
                 {verdict && (
                   <div
                     className={`mt-3 rounded-xl p-3.5 border text-xs ${verdict.eligible
-                        ? 'bg-emerald-50/60 border-emerald-200'
-                        : 'bg-amber-50/60 border-amber-200'
+                      ? 'bg-emerald-50/60 border-emerald-200'
+                      : 'bg-amber-50/60 border-amber-200'
                       }`}
                   >
                     <div className="flex items-center justify-between gap-2 font-semibold">
@@ -472,16 +472,18 @@ export default function GrantDiscoveryCard({
             )
           })}
         </div>
+      ) : loading ? (
+        <div
+          role="status"
+          className="flex items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-white p-12 text-sm text-neutral-500"
+        >
+          <Loader2 className="size-5 animate-spin text-indigo-600" />
+          Finding matching grants…
+        </div>
       ) : (
-        !loading && (
-          <div className="rounded-xl border border-dashed border-neutral-300 p-12 text-center">
-            <Compass className="size-8 mx-auto text-neutral-400 mb-2" />
-            <h4 className="text-sm font-semibold text-neutral-700">No Grants Match the Selected Filter</h4>
-            <p className="text-xs text-neutral-500 mt-1 max-w-sm mx-auto">
-              Try switching the filter to &quot;All Matches&quot; or click &quot;Discover Matching Grants&quot; above.
-            </p>
-          </div>
-        )
+        <div className="rounded-xl border border-dashed border-neutral-300 p-12 text-center">
+          ...unchanged contents...
+        </div>
       )}
 
       {/* Floating Bottom Batch Action Bar */}
