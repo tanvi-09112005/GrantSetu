@@ -41,6 +41,7 @@ export default function ProposalWorkspace({
   cache,
   onCacheChange,
   viewModeRequest,
+  exportStage = false,
 }) {
   const [selectedGrantId, setSelectedGrantId] = useState(
     cache?.selectedGrantId ??
@@ -517,7 +518,7 @@ export default function ProposalWorkspace({
                 <Sparkles className="w-5 h-5" />
               </span>
               <h2 className="text-xl font-bold text-slate-900">
-                Multi-Agent Proposal Generator
+                {exportStage ? 'Audit & Export' : 'Multi-Agent Proposal Generator'}
               </h2>
             </div>
             <p className="text-sm text-slate-600">
@@ -528,7 +529,7 @@ export default function ProposalWorkspace({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className={`flex flex-wrap items-center gap-2.5 ${exportStage ? 'hidden' : ''}`}>
             <button
               onClick={() => handleGenerate(false)}
               disabled={isGenerating || batchGenerating}
@@ -612,7 +613,7 @@ export default function ProposalWorkspace({
           </div>
 
           {/* Funder Template Picker */}
-          <div>
+          <div className={exportStage ? 'hidden' : ''}>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
               Proposal Template Specification
             </label>

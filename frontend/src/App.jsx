@@ -386,6 +386,7 @@ function AppShell() {
               cache={proposalCache.current?.ngoId === activeProfile?.id ? proposalCache.current : null}
               onCacheChange={(c) => { proposalCache.current = { ...c, ngoId: activeProfile?.id } }}
               viewModeRequest={pathname === '/export' ? 'audit' : 'editor'}
+              exportStage={pathname === '/export'}
             />
           </div>
         )}
