@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Check, ChevronLeft, ChevronRight, Compass, FileText, ShieldCheck, Sparkles } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Compass, FileText, ShieldCheck, Sparkles, Building2 } from 'lucide-react'
 
 export const PIPELINE = [
     { id: 1, path: '/vault', label: 'Org Vault & Credentials', icon: FileText },
@@ -17,9 +17,10 @@ function usePipelineStep() {
 
 export function PipelineStepper({ docCount = 0 }) {
     const { index } = usePipelineStep()
+    const { pathname } = useLocation()
 
     return (
-        <nav aria-label="Grant pipeline" className="mb-6 no-print">
+        <nav aria-label="Grant pipeline" className="mb-6 no-print flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <ol className="flex items-center gap-2 overflow-x-auto pb-1">
                 {PIPELINE.map((s, i) => {
                     const active = i === index
@@ -31,10 +32,10 @@ export function PipelineStepper({ docCount = 0 }) {
                                 to={s.path}
                                 aria-current={active ? 'step' : undefined}
                                 className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition ${active
-                                        ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm'
-                                        : passed
-                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                                            : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
+                                    ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm'
+                                    : passed
+                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                                        : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
                                     }`}
                             >
                                 <span
@@ -56,11 +57,18 @@ export function PipelineStepper({ docCount = 0 }) {
                     )
                 })}
             </ol>
-            <div className="mt-2 text-right">
-                <Link to="/profile" className="text-[11px] font-medium text-indigo-600 hover:text-indigo-800 hover:underline">
-                    Organization details &amp; Darpan ID
-                </Link>
-            </div>
+            <Link
+                to="/profile"
+                aria-current={pathname === '/profile' ? 'page' : undefined}
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition ${pathname === '/profile'
+                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                    : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
+                    }`}
+            >
+                <Building2 className="size-3.5" />
+                Organization details
+            </Link>
+
         </nav>
     )
 }

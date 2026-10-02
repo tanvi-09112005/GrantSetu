@@ -9,7 +9,7 @@ import NgoRegisterWizard from './components/NgoRegisterWizard'
 import DocumentUploadCard from './components/DocumentUploadCard'
 import GrantDiscoveryCard from './components/GrantDiscoveryCard'
 import ProposalWorkspace from './components/ProposalWorkspace'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { PipelineStepper, PipelineNav } from './components/PipelineStepper'
 import {
   Building2,
@@ -25,6 +25,7 @@ import {
   Layers,
   CheckCircle2,
   AlertTriangle,
+  Loader2,
 } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
@@ -81,6 +82,25 @@ const PATH_SECTIONS = {
   '/export': 'proposal',
 }
 
+function PageSpinner({ label = 'Loading…' }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-24 text-neutral-500" role="status">
+      <Loader2 className="size-7 animate-spin text-indigo-600" />
+      <p className="text-sm">{label}</p>
+    </div>
+  )
+}
+
+function GateCard({ title, body, children }) {
+  return (
+    <div className="mx-auto max-w-lg rounded-2xl border border-indigo-200 bg-indigo-50 p-8 text-center">
+      <h3 className="text-base font-bold text-indigo-950">{title}</h3>
+      <p className="mt-1 text-xs text-indigo-700">{body}</p>
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">{children}</div>
+    </div>
+  )
+}
+
 function AppShell() {
   const {
     user, setUser, health,
@@ -91,6 +111,7 @@ function AppShell() {
     batchGrants,
     selectGrant, selectBatch,
     reloadProfiles, handleProfileSaved, handleSignOut,
+    authLoading, profilesLoaded
   } = useApp()
 
   // UI-only state stays here for now; it moves to routes in later steps
@@ -102,13 +123,6 @@ function AppShell() {
 
   const activeSection = PATH_SECTIONS[pathname]
   const showRegister = pathname === '/register'
-
-  const [visited, setVisited] = useState({})
-  useEffect(() => {
-    if (activeSection) setVisited((v) => (v[activeSection] ? v : { ...v, [activeSection]: true }))
-  }, [activeSection])
-  const shown = (key) => activeSection === key
-  const paneCls = (key) => (activeSection === key ? '' : 'hidden')
 
   // Shims so the existing JSX keeps working unchanged
   const setActiveSection = (section) => navigate(SECTION_PATHS[section])
@@ -137,6 +151,10 @@ function AppShell() {
       console.error('Failed to load profile after registration:', err)
     }
   }
+
+  const loading = !showRegister && (authLoading || (user && !profilesLoaded))
+  const needsSignIn = !showRegister && !authLoading && !user
+  const needsNgo = !showRegister && !loading && user && !activeProfile && pathname !== '/profile'
 
   if (!activeSection && !showRegister) {
     return <Navigate to="/vault" replace />
@@ -322,84 +340,95 @@ function AppShell() {
         <PipelineStepper docCount={docCount} />
 
         {/* Section Content */}
-        {!user && (
-          <div className="mb-6 rounded-2xl bg-indigo-50 border border-indigo-200 p-4 text-xs text-indigo-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div>
-              <p className="font-bold text-sm">You&apos;re not signed in</p>
-              <p className="text-indigo-700 mt-0.5">
-                Sign in to save your own NGO profiles and attach custom compliance filings to your account.
-              </p>
-            </div>
+        {loading ? (
+          <PageSpinner label={authLoading ? 'Checking your session…' : 'Loading your organization…'} />
+        ) : needsSignIn ? (
+          <GateCard
+            title="Sign in to continue"
+            body="This page needs your NGO account. Your link will still work after you sign in."
+          >
             <button
               type="button"
               onClick={() => setShowAuthModal(true)}
-              className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 font-semibold text-xs shadow-xs shrink-0 cursor-pointer"
+              className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-xs font-semibold text-white shadow-xs cursor-pointer"
             >
               Sign In
             </button>
-          </div>
-        )}
+            <button
+              type="button"
+              onClick={() => setShowRegister(true)}
+              className="rounded-xl border border-indigo-200 bg-white hover:bg-indigo-50 px-4 py-2 text-xs font-semibold text-indigo-700 cursor-pointer"
+            >
+              Register your NGO
+            </button>
+          </GateCard>
+        ) : needsNgo ? (
+          <GateCard
+            title="Set up your organization first"
+            body="Choose a pre-verified NGO or create a custom profile to unlock this step."
+          >
+            <Link
+              to="/profile"
+              className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-xs font-semibold text-white shadow-xs"
+            >
+              Go to Organization details
+            </Link>
+          </GateCard>
+        ) : (
+          <>
+            {activeSection === 'discovery' && (
+              <GrantDiscoveryCard
+                key={activeProfile?.id}
+                ngoId={activeProfile?.id}
+                ngoProfile={activeProfile}
+                onDraftProposal={handleDraftProposal}
+                onBatchDraft={handleBatchDraft}
+                onResultsLoaded={(grants) => {
+                  setDiscoveredGrants(grants)
+                  if (!activeGrant && grants.length > 0) {
+                    setActiveGrant(grants[0])
+                  }
+                }}
+                cache={discoveryCache?.ngoId === activeProfile?.id ? discoveryCache : null}
+                onCacheChange={(c) => setDiscoveryCache({ ...c, ngoId: activeProfile?.id })}
+              />
+            )}
 
-        {shown('discovery') && (
-          <div key={activeProfile?.id || 'none'} className={paneCls('discovery')}>
-            <GrantDiscoveryCard
-              ngoId={activeProfile?.id}
-              ngoProfile={activeProfile}
-              onDraftProposal={handleDraftProposal}
-              onBatchDraft={handleBatchDraft}
-              onResultsLoaded={(grants) => {
-                setDiscoveredGrants(grants)
-                if (!activeGrant && grants.length > 0) {
-                  setActiveGrant(grants[0])
-                }
-              }}
-              cache={discoveryCache?.ngoId === activeProfile?.id ? discoveryCache : null}
-              onCacheChange={(c) => setDiscoveryCache({ ...c, ngoId: activeProfile?.id })}
-            />
-          </div>
-        )}
+            {activeSection === 'documents' && (
+              <DocumentUploadCard
+                key={activeProfile?.id}
+                ngoId={activeProfile?.id}
+                ngoProfile={activeProfile}
+                onDocumentCountChange={(c) => setDocCount(c)}
+              />
+            )}
 
-        {shown('documents') && (
-          <div key={activeProfile?.id || 'none'} className={paneCls('documents')}>
-            <DocumentUploadCard
-              ngoId={activeProfile?.id}
-              ngoProfile={activeProfile}
-              onDocumentCountChange={(c) => setDocCount(c)}
-            />
-          </div>
-        )}
+            {activeSection === 'proposal' && (
+              <ProposalWorkspace
+                key={activeProfile?.id}
+                activeNgo={activeProfile}
+                activeGrant={activeGrant}
+                batchGrants={batchGrants}
+                grants={discoveredGrants}
+                onSelectGrant={(grant) => setActiveGrant(grant)}
+                cache={proposalCache.current?.ngoId === activeProfile?.id ? proposalCache.current : null}
+                onCacheChange={(c) => { proposalCache.current = { ...c, ngoId: activeProfile?.id } }}
+                viewModeRequest={pathname === '/export' ? 'audit' : 'editor'}
+                exportStage={pathname === '/export'}
+              />
+            )}
 
-        {shown('proposal') && (
-          <div key={activeProfile?.id || 'none'} className={paneCls('proposal')}>
-            <ProposalWorkspace
-              activeNgo={
-                activeProfile || {
-                  id: 'b6b3f1a9-01ed-4def-8b14-58e4c3e0863e',
-                  name: 'Child Rights and You (CRY)',
-                  darpan_id: 'DL/2009/0014766',
-                }
-              }
-              activeGrant={activeGrant}
-              batchGrants={batchGrants}
-              grants={discoveredGrants}
-              onSelectGrant={(grant) => setActiveGrant(grant)}
-              cache={proposalCache.current?.ngoId === activeProfile?.id ? proposalCache.current : null}
-              onCacheChange={(c) => { proposalCache.current = { ...c, ngoId: activeProfile?.id } }}
-              viewModeRequest={pathname === '/export' ? 'audit' : 'editor'}
-              exportStage={pathname === '/export'}
-            />
-          </div>
-        )}
+            {activeSection === 'profile' && (
+              <NGOProfileCard
+                key={activeProfile?.id}
+                currentProfile={activeProfile}
+                onProfileSaved={handleProfileSaved}
+              />
+            )}
 
-        {shown('profile') && (
-          <div key={activeProfile?.id || 'none'} className={paneCls('profile')}>
-            <NGOProfileCard
-              currentProfile={activeProfile}
-              onProfileSaved={handleProfileSaved}
-            />
-          </div>
+            <PipelineNav />
+          </>
         )}
-        <PipelineNav />
       </main>
 
       {/* Auth Modal */}

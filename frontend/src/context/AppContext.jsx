@@ -13,6 +13,7 @@ export function useApp() {
 export function AppProvider({ children }) {
     const [user, setUser] = useState(null)
     const [authLoading, setAuthLoading] = useState(Boolean(supabase)) // for route guards later
+    const [profilesLoaded, setProfilesLoaded] = useState(false)
     const [health, setHealth] = useState(null)
     const [profiles, setProfiles] = useState([])
     const [activeProfile, setActiveProfile] = useState(null)
@@ -46,6 +47,7 @@ export function AppProvider({ children }) {
         if (!user) {
             setProfiles([])
             setActiveProfile(null)
+            setProfilesLoaded(false)
             return
         }
         listProfiles()
@@ -54,6 +56,7 @@ export function AppProvider({ children }) {
                 if (data && data.length > 0 && !activeProfile) setActiveProfile(data[0])
             })
             .catch((err) => console.error('Failed to list profiles:', err))
+            .finally(() => setProfilesLoaded(true))
     }, [user])
 
     // Document count for active profile
@@ -97,7 +100,7 @@ export function AppProvider({ children }) {
     }
 
     const value = {
-        user, setUser, authLoading, health,
+        user, setUser, authLoading, profilesLoaded, health,
         profiles, activeProfile, setActiveProfile,
         docCount, setDocCount,
         activeGrant, setActiveGrant,
