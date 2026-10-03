@@ -5,7 +5,7 @@ import { PipelineNav } from '../components/PipelineStepper'
 import { GateCard, gatePrimary } from '../components/RouteGuards'
 
 const NgoRegisterWizard = lazy(() => import('../components/NgoRegisterWizard'))
-const DocumentUploadCard = lazy(() => import('../components/DocumentUploadCard'))
+const DocumentVault = lazy(() => import('../components/DocumentVault'))
 const GrantDiscoveryCard = lazy(() => import('../components/GrantDiscoveryCard'))
 const ProposalWorkspace = lazy(() => import('../components/ProposalWorkspace'))
 const NGOProfileCard = lazy(() => import('../components/NGOProfileCard'))
@@ -28,12 +28,11 @@ export function VaultPage() {
     const { activeProfile, setDocCount } = useApp()
     return (
         <>
-            <DocumentUploadCard
-                key={activeProfile?.id}
-                ngoId={activeProfile?.id}
-                ngoProfile={activeProfile}
-                onDocumentCountChange={(c) => setDocCount(c)}
-            />
+            <DocumentVault
+    key={activeProfile?.id}
+    ngoId={activeProfile?.id}
+    onDocumentCountChange={(c) => setDocCount(c)}
+/>
             <PipelineNav />
         </>
     )

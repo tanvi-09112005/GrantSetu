@@ -16,7 +16,7 @@ from app.api import    grants, ngo, proposals
 from app.api import  eligibility
 from app.api import applications
 from app.api import   evaluation
-from app.api import registration
+from app.api import registration, vault
 from app.core.config import settings
 from app.db import pool
 from app.graph.graph import get_app as get_graph
@@ -56,6 +56,7 @@ app.add_middleware(
 
 for router in (
     registration.router,
+    vault.router,
     ngo.router,
     grants.router,
     eligibility.router,

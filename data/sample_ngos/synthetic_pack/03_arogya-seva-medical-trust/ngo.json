@@ -1,0 +1,54 @@
+{
+  "slug": "arogya-seva-medical-trust",
+  "email_local": "arogya",
+  "admin_name": "S. Venkatraman",
+  "admin_designation": "Managing Trustee",
+  "admin_phone": "9840000333",
+  "ngo_name": "Arogya Seva Medical Trust",
+  "incorporation_year": 1998,
+  "state": "Tamil Nadu",
+  "district": "Chennai",
+  "darpan_id": "TN/2008/0567890",
+  "has_12a": true,
+  "has_80g": true,
+  "has_fcra": true,
+  "profile": {
+    "mission": "Provide affordable, quality medical care to poor and underserved communities in Tamil Nadu and neighbouring states, with a focus on maternal health, surgery and chronic disease.",
+    "sectors": [
+      "Healthcare",
+      "Maternal & Child Health",
+      "Surgery & Eye Care",
+      "Non-communicable Diseases",
+      "Community Health"
+    ],
+    "registered_on": "1998-03-03",
+    "reg_12a": "AAATA6789PE20211",
+    "reg_80g": "AAATA6789PF2021401",
+    "reg_fcra": "075990123",
+    "fcra_status": "active",
+    "fcra_valid_until": "2028-09-30"
+  },
+  "documents": {
+    "darpan_certificate": "1_statutory/darpan_certificate.pdf",
+    "cert_12a": "1_statutory/cert_12a.pdf",
+    "cert_80g": "1_statutory/cert_80g.pdf",
+    "cert_fcra": "1_statutory/cert_fcra.pdf",
+    "csr1": "1_statutory/csr1_registration.pdf",
+    "audited_balance_sheet": "2_financial/audited_balance_sheet_FY2025-26.pdf",
+    "itr7": "2_financial/itr7_AY2026-27.pdf",
+    "annual_budget": "2_financial/annual_budget_FY2026-27.pdf",
+    "annual_report": "3_impact/annual_report_FY2025-26.pdf",
+    "past_proposal": "3_impact/past_winning_proposal.pdf",
+    "project_plan": "3_impact/project_plan_phase2.pdf"
+  },
+  "branding": {
+    "logo": "4_branding/logo.png",
+    "stamp": "4_branding/stamp.png",
+    "signature": "4_branding/signature.png"
+  },
+  "absent_claims": [
+    "Arogya Seva Medical Trust operates a 500-bed super-speciality hospital.",
+    "The Trust has treated over 3 million patients since 2015.",
+    "The mobile clinic programme is accredited by the World Health Organization."
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "slug": "pragati-gram-vikas",
+  "email_local": "pragati",
+  "admin_name": "Meenakshi Rathore",
+  "admin_designation": "Secretary",
+  "admin_phone": "9414000111",
+  "ngo_name": "Pragati Gram Vikas Samiti",
+  "incorporation_year": 2009,
+  "state": "Rajasthan",
+  "district": "Udaipur",
+  "darpan_id": "RJ/2011/0234567",
+  "has_12a": true,
+  "has_80g": true,
+  "has_fcra": false,
+  "profile": {
+    "mission": "Improve rural livelihoods, water security and women-led enterprise in tribal villages of southern Rajasthan.",
+    "sectors": [
+      "Rural Development",
+      "Livelihoods",
+      "Water & Sanitation",
+      "Agriculture",
+      "Women Empowerment"
+    ],
+    "registered_on": "2009-06-14",
+    "reg_12a": "AAATP2345KE20211",
+    "reg_80g": "AAATP2345KF2021201",
+    "reg_fcra": null,
+    "fcra_status": "never_held",
+    "fcra_valid_until": null
+  },
+  "documents": {
+    "darpan_certificate": "1_statutory/darpan_certificate.pdf",
+    "cert_12a": "1_statutory/cert_12a.pdf",
+    "cert_80g": "1_statutory/cert_80g.pdf",
+    "csr1": "1_statutory/csr1_registration.pdf",
+    "audited_balance_sheet": "2_financial/audited_balance_sheet_FY2025-26.pdf",
+    "itr7": "2_financial/itr7_AY2026-27.pdf",
+    "annual_budget": "2_financial/annual_budget_FY2026-27.pdf",
+    "annual_report": "3_impact/annual_report_FY2025-26.pdf",
+    "past_proposal": "3_impact/past_winning_proposal.pdf",
+    "project_plan": "3_impact/project_plan_phase2.pdf"
+  },
+  "branding": {
+    "logo": "4_branding/logo.png",
+    "stamp": "4_branding/stamp.png",
+    "signature": "4_branding/signature.png"
+  },
+  "absent_claims": [
+    "The organisation operates in more than 300 villages across Gujarat and Rajasthan.",
+    "Pragati Gram Vikas Samiti holds FCRA registration and received USD 250,000 from foreign donors.",
+    "The programme has been independently evaluated by a national university with a 95% satisfaction score."
+  ]
+}

@@ -12,9 +12,11 @@ from uuid import UUID
 FunderType = Literal["govt", "csr", "foundation", "international"]
 FcraStatus = Literal["active", "expired", "cancelled", "suspended", "never_held", "unknown"]
 DocType = Literal[
-       "registration", "annual_report", "program_report", "financial_statement", "other",
-       "darpan_certificate", "cert_12a", "cert_80g",
-   ]
+    "registration", "annual_report", "program_report", "financial_statement", "other",
+    "12a_80g", "fcra",
+    "darpan_certificate", "cert_12a", "cert_80g", "cert_fcra", "csr1",
+    "audited_balance_sheet", "itr7", "annual_budget", "past_proposal", "project_plan",
+]
 
 
 # --- NGO ---------------------------------------------------------------------
