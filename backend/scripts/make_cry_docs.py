@@ -1,0 +1,509 @@
+"""Generate sample verification documents and branding assets for Child Rights and You (CRY).
+Output directory: data/sample_documents/cry/
+"""
+
+import os
+from pathlib import Path
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import inch
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+)
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
+from PIL import Image, ImageDraw, ImageFont
+
+OUTPUT_DIR = Path(__file__).resolve().parents[2] / "data" / "sample_documents" / "cry"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+styles = getSampleStyleSheet()
+
+title_style = ParagraphStyle(
+    "GovTitle",
+    parent=styles["Normal"],
+    fontName="Helvetica-Bold",
+    fontSize=14,
+    leading=18,
+    alignment=TA_CENTER,
+    textColor=colors.HexColor("#1A365D"),
+)
+
+sub_style = ParagraphStyle(
+    "GovSubtitle",
+    parent=styles["Normal"],
+    fontName="Helvetica-Bold",
+    fontSize=10,
+    leading=14,
+    alignment=TA_CENTER,
+    textColor=colors.HexColor("#4A5568"),
+)
+
+body_style = ParagraphStyle(
+    "GovBody",
+    parent=styles["Normal"],
+    fontName="Helvetica",
+    fontSize=9,
+    leading=13,
+    alignment=TA_JUSTIFY,
+    textColor=colors.HexColor("#2D3748"),
+)
+
+bold_label = ParagraphStyle(
+    "GovBoldLabel",
+    parent=styles["Normal"],
+    fontName="Helvetica-Bold",
+    fontSize=9,
+    leading=13,
+    textColor=colors.HexColor("#1A202C"),
+)
+
+value_style = ParagraphStyle(
+    "GovValue",
+    parent=styles["Normal"],
+    fontName="Helvetica",
+    fontSize=9,
+    leading=13,
+    textColor=colors.HexColor("#2D3748"),
+)
+
+def make_darpan_pdf():
+    pdf_path = OUTPUT_DIR / "CRY_Darpan_Registration_Certificate.pdf"
+    doc = SimpleDocTemplate(
+        str(pdf_path),
+        pagesize=A4,
+        leftMargin=0.6 * inch,
+        rightMargin=0.6 * inch,
+        topMargin=0.6 * inch,
+        bottomMargin=0.6 * inch,
+    )
+    story = []
+
+    story.append(Paragraph("GOVERNMENT OF INDIA", title_style))
+    story.append(Paragraph("NITI AAYOG — NGO-DARPAN PORTAL", sub_style))
+    story.append(Paragraph("ACKNOWLEDGEMENT & REGISTRATION CERTIFICATE", title_style))
+    story.append(Spacer(1, 10))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#1A365D"), spaceAfter=12))
+
+    intro_text = (
+        "This is to certify that the Non-Governmental Organization (NGO) / Voluntary Organization (VO) "
+        "detailed below has registered on the <b>NGO-DARPAN portal of NITI Aayog</b>, Government of India, "
+        "and has been assigned the Unique Identification Number as per the records maintained in the National Database."
+    )
+    story.append(Paragraph(intro_text, body_style))
+    story.append(Spacer(1, 12))
+
+    data = [
+        [Paragraph("NGO Unique Darpan ID", bold_label), Paragraph("<b>DL/2009/0014766</b>", bold_label)],
+        [Paragraph("Official Registered Name", bold_label), Paragraph("Child Rights and You (CRY)", value_style)],
+        [Paragraph("Type of Organization", bold_label), Paragraph("Registered Trust / Society", value_style)],
+        [Paragraph("Registration Number & Date", bold_label), Paragraph("F-4321 / 18th April 1979", value_style)],
+        [Paragraph("Registered Address", bold_label), Paragraph("630, Anand Bhavan, South Delhi, Delhi - 110049", value_style)],
+        [Paragraph("State / Union Territory", bold_label), Paragraph("Delhi", value_style)],
+        [Paragraph("District", bold_label), Paragraph("South Delhi", value_style)],
+        [Paragraph("Key Sectors of Operation", bold_label), Paragraph("Child Welfare, Education, Health & Nutrition, Social Welfare", value_style)],
+        [Paragraph("Income Tax 12A Status", bold_label), Paragraph("Active & Registered (AAATC1234A)", value_style)],
+        [Paragraph("Income Tax 80G Status", bold_label), Paragraph("Active & Approved (AAATC1234B)", value_style)],
+        [Paragraph("FCRA Registration No.", bold_label), Paragraph("231650035 (Active & Valid)", value_style)],
+        [Paragraph("Primary Authorized Contact", bold_label), Paragraph("Puja Marwaha (Managing Trustee & CEO)", value_style)],
+        [Paragraph("Official Contact Email", bold_label), Paragraph("admin@crymail.org / support@cry.org", value_style)],
+    ]
+
+    t = Table(data, colWidths=[2.2 * inch, 4.8 * inch])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F7FAFC")),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E0")),
+        ("PADDING", (0, 0), (-1, -1), 5),
+        ("BACKGROUND", (0, 0), (1, 0), colors.HexColor("#EBF8FF")),
+        ("TEXTCOLOR", (0, 0), (1, 0), colors.HexColor("#2B6CB0")),
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 15))
+
+    footer_text = (
+        "<b>Important Note:</b> This electronic certificate is generated by the NGO-DARPAN Portal (NITI Aayog, New Delhi). "
+        "Any change in office bearers, registered address, or statutory registrations must be updated on the portal within 30 days. "
+        "Unique Identifier: <b>DL/2009/0014766</b> is verified for Centrally Sponsored Schemes & Central Grants-in-Aid."
+    )
+    story.append(Paragraph(footer_text, body_style))
+    story.append(Spacer(1, 20))
+
+    auth_data = [
+        [Paragraph("Date of Verification: <b>12/04/2009</b><br/>Renewal Verified: <b>Active</b>", value_style),
+         Paragraph("<b>Digitally Verified</b><br/>Authorized Officer, NGO-Darpan Portal<br/>NITI Aayog, Government of India", value_style)]
+    ]
+    at = Table(auth_data, colWidths=[3.5 * inch, 3.5 * inch])
+    at.setStyle(TableStyle([
+        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(at)
+
+    doc.build(story)
+    print(f"Generated: {pdf_path}")
+
+def make_12a_pdf():
+    pdf_path = OUTPUT_DIR / "CRY_12A_Registration_Certificate.pdf"
+    doc = SimpleDocTemplate(
+        str(pdf_path),
+        pagesize=A4,
+        leftMargin=0.6 * inch,
+        rightMargin=0.6 * inch,
+        topMargin=0.6 * inch,
+        bottomMargin=0.6 * inch,
+    )
+    story = []
+
+    story.append(Paragraph("GOVERNMENT OF INDIA", title_style))
+    story.append(Paragraph("INCOME TAX DEPARTMENT", sub_style))
+    story.append(Paragraph("OFFICE OF THE COMMISSIONER OF INCOME TAX (EXEMPTIONS)", sub_style))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph("FORM NO. 10AC", title_style))
+    story.append(Paragraph("Order for registration under section 12A/12AB of the Income Tax Act, 1961", sub_style))
+    story.append(Spacer(1, 10))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#1A365D"), spaceAfter=12))
+
+    data = [
+        [Paragraph("1. Unique Registration Number (URN)", bold_label), Paragraph("<b>AAATC1234A</b>", bold_label)],
+        [Paragraph("2. Name of the Entity", bold_label), Paragraph("Child Rights and You (CRY)", value_style)],
+        [Paragraph("3. Permanent Account Number (PAN)", bold_label), Paragraph("AAATC1234A", value_style)],
+        [Paragraph("4. Registered Address", bold_label), Paragraph("630, Anand Bhavan, South Delhi, Delhi - 110049", value_style)],
+        [Paragraph("5. Date of Incorporation / Registration", bold_label), Paragraph("18/04/1979", value_style)],
+        [Paragraph("6. Nature of Activities", bold_label), Paragraph("Charitable — Relief of Poor, Education, Medical Relief", value_style)],
+        [Paragraph("7. Section under which approved", bold_label), Paragraph("Section 12A / 12AB (Sub-clause (i) of clause (ac) of sub-section (1))", value_style)],
+        [Paragraph("8. Assessment Years for which effective", bold_label), Paragraph("AY 2022-23 to AY 2027-28 (Perpetual / 5-Year Cycle)", value_style)],
+        [Paragraph("9. NGO Darpan Identifier", bold_label), Paragraph("DL/2009/0014766", value_style)],
+    ]
+
+    t = Table(data, colWidths=[2.5 * inch, 4.5 * inch])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F7FAFC")),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E0")),
+        ("PADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 15))
+
+    terms = (
+        "<b>Conditions of Registration:</b><br/>"
+        "i. The trust/institution shall apply its income for charitable purposes in accordance with sections 11 and 12.<br/>"
+        "ii. The entity shall maintain regular books of accounts audited by an authorized Chartered Accountant.<br/>"
+        "iii. This certificate shall remain valid subject to compliance with the provisions of the Income Tax Act, 1961."
+    )
+    story.append(Paragraph(terms, body_style))
+    story.append(Spacer(1, 25))
+
+    auth_data = [
+        [Paragraph("Date: <b>24/09/2021</b><br/>Place: <b>New Delhi</b>", value_style),
+         Paragraph("<b>(Digitally Signed)</b><br/>Commissioner of Income Tax (Exemption)<br/>Delhi Jurisdiction, Income Tax Department", value_style)]
+    ]
+    at = Table(auth_data, colWidths=[3.5 * inch, 3.5 * inch])
+    at.setStyle(TableStyle([
+        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(at)
+
+    doc.build(story)
+    print(f"Generated: {pdf_path}")
+
+def make_80g_pdf():
+    pdf_path = OUTPUT_DIR / "CRY_80G_Certificate.pdf"
+    doc = SimpleDocTemplate(
+        str(pdf_path),
+        pagesize=A4,
+        leftMargin=0.6 * inch,
+        rightMargin=0.6 * inch,
+        topMargin=0.6 * inch,
+        bottomMargin=0.6 * inch,
+    )
+    story = []
+
+    story.append(Paragraph("GOVERNMENT OF INDIA", title_style))
+    story.append(Paragraph("INCOME TAX DEPARTMENT", sub_style))
+    story.append(Paragraph("CERTIFICATE OF APPROVAL UNDER SECTION 80G", title_style))
+    story.append(Paragraph("Clause (i) of first proviso to sub-section (5) of Section 80G of Income Tax Act, 1961", sub_style))
+    story.append(Spacer(1, 10))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#1A365D"), spaceAfter=12))
+
+    data = [
+        [Paragraph("1. Approval Order / URN", bold_label), Paragraph("<b>AAATC1234B</b>", bold_label)],
+        [Paragraph("2. Name of Institution", bold_label), Paragraph("Child Rights and You (CRY)", value_style)],
+        [Paragraph("3. PAN Number", bold_label), Paragraph("AAATC1234A", value_style)],
+        [Paragraph("4. Registered Address", bold_label), Paragraph("630, Anand Bhavan, South Delhi, Delhi - 110049", value_style)],
+        [Paragraph("5. Validity Period", bold_label), Paragraph("From AY 2022-23 to AY 2027-28", value_style)],
+        [Paragraph("6. Tax Deduction Eligibility", bold_label), Paragraph("Donations eligible for 50% deduction in hands of donors under Section 80G(5)(vi)", value_style)],
+        [Paragraph("7. NITI Aayog Darpan ID", bold_label), Paragraph("DL/2009/0014766", value_style)],
+    ]
+
+    t = Table(data, colWidths=[2.5 * inch, 4.5 * inch])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F7FAFC")),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E0")),
+        ("PADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 20))
+
+    cert_note = (
+        "This certifies that donations made to <b>Child Rights and You (CRY)</b> are entitled to the tax deduction "
+        "allowable under <b>Section 80G</b> of the Income Tax Act, 1961. Receipts issued to donors shall quote this "
+        "Unique Approval Order Number <b>AAATC1234B</b>."
+    )
+    story.append(Paragraph(cert_note, body_style))
+    story.append(Spacer(1, 25))
+
+    auth_data = [
+        [Paragraph("Issued on: <b>24/09/2021</b><br/>New Delhi", value_style),
+         Paragraph("<b>(Signed Electronically)</b><br/>Director of Income Tax (Exemptions)<br/>Government of India", value_style)]
+    ]
+    at = Table(auth_data, colWidths=[3.5 * inch, 3.5 * inch])
+    at.setStyle(TableStyle([
+        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(at)
+
+    doc.build(story)
+    print(f"Generated: {pdf_path}")
+
+def make_fcra_pdf():
+    pdf_path = OUTPUT_DIR / "CRY_FCRA_Registration_Certificate.pdf"
+    doc = SimpleDocTemplate(
+        str(pdf_path),
+        pagesize=A4,
+        leftMargin=0.6 * inch,
+        rightMargin=0.6 * inch,
+        topMargin=0.6 * inch,
+        bottomMargin=0.6 * inch,
+    )
+    story = []
+
+    story.append(Paragraph("GOVERNMENT OF INDIA", title_style))
+    story.append(Paragraph("MINISTRY OF HOME AFFAIRS", sub_style))
+    story.append(Paragraph("FOREIGNERS DIVISION (FCRA WING)", sub_style))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph("CERTIFICATE OF REGISTRATION UNDER FCRA, 2010", title_style))
+    story.append(Spacer(1, 10))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#1A365D"), spaceAfter=12))
+
+    data = [
+        [Paragraph("FCRA Registration Number", bold_label), Paragraph("<b>231650035</b>", bold_label)],
+        [Paragraph("Status of Registration", bold_label), Paragraph("<b>ACTIVE / VALID</b>", bold_label)],
+        [Paragraph("Name of the Association", bold_label), Paragraph("Child Rights and You (CRY)", value_style)],
+        [Paragraph("Nature of Association", bold_label), Paragraph("Social and Educational", value_style)],
+        [Paragraph("Designated Bank Account", bold_label), Paragraph("State Bank of India, New Delhi Main Branch (NDMB)", value_style)],
+        [Paragraph("Validity Period", bold_label), Paragraph("<b>01/10/2023 to 30/09/2028</b>", value_style)],
+        [Paragraph("Darpan Unique Identification", bold_label), Paragraph("DL/2009/0014766", value_style)],
+    ]
+
+    t = Table(data, colWidths=[2.5 * inch, 4.5 * inch])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F7FAFC")),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E0")),
+        ("PADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 15))
+
+    fcra_note = (
+        "The association is registered under Section 11(1) of the Foreign Contribution (Regulation) Act, 2010. "
+        "All foreign contributions must be received exclusively through the designated SBI New Delhi Main Branch account. "
+        "The association is fully authorized to collaborate on and execute internationally funded and foreign bilateral development grants."
+    )
+    story.append(Paragraph(fcra_note, body_style))
+    story.append(Spacer(1, 25))
+
+    auth_data = [
+        [Paragraph("New Delhi<br/>Dated: <b>15/09/2023</b>", value_style),
+         Paragraph("<b>Director (FCRA)</b><br/>Ministry of Home Affairs<br/>Government of India", value_style)]
+    ]
+    at = Table(auth_data, colWidths=[3.5 * inch, 3.5 * inch])
+    at.setStyle(TableStyle([
+        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(at)
+
+    doc.build(story)
+    print(f"Generated: {pdf_path}")
+
+def make_audit_pdf():
+    pdf_path = OUTPUT_DIR / "CRY_Audited_Financial_Statement_FY24.pdf"
+    doc = SimpleDocTemplate(
+        str(pdf_path),
+        pagesize=A4,
+        leftMargin=0.6 * inch,
+        rightMargin=0.6 * inch,
+        topMargin=0.6 * inch,
+        bottomMargin=0.6 * inch,
+    )
+    story = []
+
+    story.append(Paragraph("CHILD RIGHTS AND YOU (CRY)", title_style))
+    story.append(Paragraph("AUDITED BALANCE SHEET & STATEMENT OF ACCOUNTS", sub_style))
+    story.append(Paragraph("For the Financial Year Ended 31st March 2024 (FY 2023–24)", sub_style))
+    story.append(Spacer(1, 10))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#1A365D"), spaceAfter=12))
+
+    summary_text = (
+        "<b>Auditor's Note:</b> We have audited the accompanying financial statements of <b>Child Rights and You (CRY)</b> "
+        "(Darpan ID: <b>DL/2009/0014766</b>), comprising the Balance Sheet as of March 31, 2024, and the Income & Expenditure "
+        "Account for the year ended. In our opinion, the financial statements give a true and fair view in conformity with the accounting principles generally accepted in India."
+    )
+    story.append(Paragraph(summary_text, body_style))
+    story.append(Spacer(1, 10))
+
+    data = [
+        [Paragraph("<b>Particulars</b>", bold_label), Paragraph("<b>FY 2023–24 (₹ in Lakhs)</b>", bold_label), Paragraph("<b>FY 2022–23 (₹ in Lakhs)</b>", bold_label)],
+        [Paragraph("<b>I. SOURCES OF FUNDS</b>", bold_label), Paragraph("", value_style), Paragraph("", value_style)],
+        [Paragraph("General Reserve & Corpus Fund", value_style), Paragraph("₹ 3,450.20", value_style), Paragraph("₹ 3,110.80", value_style)],
+        [Paragraph("Designated Program Funds", value_style), Paragraph("₹ 4,820.50", value_style), Paragraph("₹ 4,215.30", value_style)],
+        [Paragraph("Current Liabilities & Payables", value_style), Paragraph("₹ 385.10", value_style), Paragraph("₹ 340.20", value_style)],
+        [Paragraph("<b>Total Funds</b>", bold_label), Paragraph("<b>₹ 8,655.80</b>", bold_label), Paragraph("<b>₹ 7,666.30</b>", bold_label)],
+        [Paragraph("<b>II. APPLICATION OF FUNDS</b>", bold_label), Paragraph("", value_style), Paragraph("", value_style)],
+        [Paragraph("Child Education & Welfare Programs", value_style), Paragraph("₹ 5,120.40", value_style), Paragraph("₹ 4,530.10", value_style)],
+        [Paragraph("Child Health & Nutrition Interventions", value_style), Paragraph("₹ 2,150.30", value_style), Paragraph("₹ 1,890.50", value_style)],
+        [Paragraph("Community Mobilization & Training", value_style), Paragraph("₹ 840.10", value_style), Paragraph("₹ 760.40", value_style)],
+        [Paragraph("Administrative & Governance Expenses (4.2%)", value_style), Paragraph("₹ 345.00", value_style), Paragraph("₹ 320.30", value_style)],
+        [Paragraph("Cash & Bank Balances (including SBI NDMB)", value_style), Paragraph("₹ 200.00", value_style), Paragraph("₹ 165.00", value_style)],
+        [Paragraph("<b>Total Application</b>", bold_label), Paragraph("<b>₹ 8,655.80</b>", bold_label), Paragraph("<b>₹ 7,666.30</b>", bold_label)],
+    ]
+
+    t = Table(data, colWidths=[3.2 * inch, 1.9 * inch, 1.9 * inch])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E2E8F0")),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E0")),
+        ("PADDING", (0, 0), (-1, -1), 4),
+        ("BACKGROUND", (0, 5), (-1, 5), colors.HexColor("#F7FAFC")),
+        ("BACKGROUND", (0, 12), (-1, 12), colors.HexColor("#EDF2F7")),
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 15))
+
+    stat_note = (
+        "<b>Compliance Attestation:</b> Administrative expenses for FY 2023–24 stand at <b>4.2%</b> of total expenditures, "
+        "complying with Section 135 CSR Rules (&le; 5% administrative overhead threshold). The organization has active 12A (AAATC1234A) and 80G (AAATC1234B) exemptions."
+    )
+    story.append(Paragraph(stat_note, body_style))
+    story.append(Spacer(1, 20))
+
+    auditor_block = [
+        [Paragraph("For <b>Child Rights and You (CRY)</b><br/><br/><b>Puja Marwaha</b><br/>Managing Trustee & CEO", value_style),
+         Paragraph("As per our report of even date attached<br/>For <b>K. S. & Associates</b>, Chartered Accountants<br/>Firm Regn No: 104523N<br/><br/><b>CA Sanjay Sharma</b> (Partner) | M. No. 089421", value_style)]
+    ]
+    ab = Table(auditor_block, colWidths=[3.5 * inch, 3.5 * inch])
+    ab.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(ab)
+
+    doc.build(story)
+    print(f"Generated: {pdf_path}")
+
+def make_branding_assets():
+    # 1. Logo
+    logo_path = OUTPUT_DIR / "CRY_Official_Logo.png"
+    img = Image.new("RGBA", (500, 160), (255, 255, 255, 0))
+    draw = ImageDraw.Draw(img)
+    # Draw yellow circular emblem
+    draw.ellipse([20, 20, 140, 140], fill=(255, 204, 0, 255))
+    # Draw child sun rays
+    for i in range(8):
+        pass
+    # Big CRY text
+    draw.text((165, 30), "CRY", fill=(220, 38, 38, 255)) # bold red
+    draw.text((165, 85), "CHILD RIGHTS AND YOU", fill=(30, 41, 59, 255))
+    draw.text((165, 115), "DL/2009/0014766  •  Regd. 1979", fill=(100, 116, 139, 255))
+    img.save(str(logo_path), "PNG")
+    print(f"Generated: {logo_path}")
+
+    # 2. Stamp / Seal
+    stamp_path = OUTPUT_DIR / "CRY_Official_Stamp_Seal.png"
+    s_img = Image.new("RGBA", (320, 320), (255, 255, 255, 0))
+    s_draw = ImageDraw.Draw(s_img)
+    # Double ring blue stamp
+    blue_ink = (26, 54, 93, 220)
+    s_draw.ellipse([10, 10, 310, 310], outline=blue_ink, width=4)
+    s_draw.ellipse([22, 22, 298, 298], outline=blue_ink, width=2)
+    s_draw.text((45, 60), "CHILD RIGHTS AND YOU", fill=blue_ink)
+    s_draw.text((80, 95), "* NEW DELHI *", fill=blue_ink)
+    s_draw.text((85, 150), "OFFICIAL SEAL", fill=blue_ink)
+    s_draw.text((65, 185), "DARPAN: DL/2009/0014766", fill=blue_ink)
+    s_draw.text((95, 220), "ESTD. 1979", fill=blue_ink)
+    s_img.save(str(stamp_path), "PNG")
+    print(f"Generated: {stamp_path}")
+
+    # 3. Signature
+    sig_path = OUTPUT_DIR / "CRY_Authorized_Signatory.png"
+    sig_img = Image.new("RGBA", (360, 140), (255, 255, 255, 0))
+    sig_draw = ImageDraw.Draw(sig_img)
+    # Draw signature curves
+    sig_color = (15, 23, 42, 240)
+    sig_draw.line([(30, 80), (60, 30), (80, 110), (120, 50), (160, 90), (200, 45), (240, 80), (320, 75)], fill=sig_color, width=3)
+    sig_draw.line([(70, 70), (280, 85)], fill=sig_color, width=2)
+    sig_draw.text((40, 105), "Puja Marwaha (CEO / Trustee)", fill=(71, 85, 105, 255))
+    sig_img.save(str(sig_path), "PNG")
+    print(f"Generated: {sig_path}")
+
+def make_cheatsheet():
+    txt_path = OUTPUT_DIR / "CRY_Registration_CheatSheet.txt"
+    content = """=============================================================================
+GRANTSETU — SAMPLE NGO TEST CREDENTIALS: CHILD RIGHTS AND YOU (CRY)
+Use this cheatsheet to fill the 3-step registration wizard on http://localhost:5173/register
+=============================================================================
+
+STEP 1: ADMIN & CONTACT IDENTITY
+---------------------------------
+Admin Full Name:        Puja Marwaha
+Official Designation:   Trustee (select from dropdown or type "Managing Trustee")
+Contact Mobile Number:  9811234567
+Login Work Email:       admin@crymail.org  (or your personal test email)
+Account Password:       CryTestPass@123    (min 6 characters)
+
+STEP 2: STATUTORY NGO CREDENTIALS
+---------------------------------
+Official NGO Name:      Child Rights and You (CRY)
+Incorporation Year:     1979
+State:                  Delhi (or select 'Delhi' from dropdown)
+District:               South Delhi
+NGO Darpan ID:          DL/2009/0014766   (Exact NITI Aayog registered format)
+
+Legal Status Checkboxes:
+  [X] 12A Registration Active     (URN: AAATC1234A)
+  [X] 80G Tax Exemption Active    (URN: AAATC1234B)
+  [X] FCRA Registered & Active    (FCRA No: 231650035, Valid till 2028)
+
+STEP 3: VERIFICATION PROOF UPLOADS (Files in this folder)
+---------------------------------
+1. Darpan Certificate (Mandatory):
+   -> Choose File: CRY_Darpan_Registration_Certificate.pdf
+   (Contains "DL/2009/0014766" — triggers green "document_matched" verification)
+
+2. 12A Certificate (Optional / Recommended):
+   -> Choose File: CRY_12A_Registration_Certificate.pdf
+
+3. 80G Certificate (Optional / Recommended):
+   -> Choose File: CRY_80G_Certificate.pdf
+
+ADDITIONAL DOCUMENTS IN THIS PACK (For Task 3 Document Vault):
+--------------------------------------------------------------
+- CRY_FCRA_Registration_Certificate.pdf    (Ministry of Home Affairs FCRA Proof)
+- CRY_Audited_Financial_Statement_FY24.pdf  (FY24 Balance Sheet with 4.2% Admin cap)
+- CRY_Official_Logo.png                    (Transparent header branding logo)
+- CRY_Official_Stamp_Seal.png              (Transparent official circular rubber stamp)
+- CRY_Authorized_Signatory.png             (Authorized signatory signature image)
+=============================================================================
+"""
+    txt_path.write_text(content, encoding="utf-8")
+    print(f"Generated: {txt_path}")
+
+if __name__ == "__main__":
+    make_darpan_pdf()
+    make_12a_pdf()
+    make_80g_pdf()
+    make_fcra_pdf()
+    make_audit_pdf()
+    make_branding_assets()
+    make_cheatsheet()
+    print("\nAll CRY sample documents generated successfully in data/sample_documents/cry/")

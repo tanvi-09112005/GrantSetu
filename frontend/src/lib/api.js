@@ -91,6 +91,19 @@ export const exportProposal = (proposalId, format = 'markdown') =>
 export const verifyProposal = (proposalId) =>
   api.post(`/proposals/${proposalId}/verify`).then((r) => r.data)
 
+export const exportProposalPdf = (proposalId) =>
+  api.get(`/proposals/${proposalId}/export-pdf`, { responseType: 'blob' }).then((r) => r.data)
+
+export const exportProposalDocx = (proposalId) =>
+  api.get(`/proposals/${proposalId}/export-docx`, { responseType: 'blob' }).then((r) => r.data)
+
+export const refineSection = (proposalId, sectionKey, instruction, temperature = 0.2) =>
+  api.post(`/proposals/${proposalId}/refine-section`, {
+    section_key: sectionKey,
+    instruction,
+    temperature,
+  }).then((r) => r.data)
+
 
 
 // NGO registration wizard (Task 1) — multipart: form fields + certificate PDFs.

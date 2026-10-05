@@ -286,6 +286,111 @@ def _retrieve_all_evidence(ngo_id: str, limit: int = 6) -> list[str]:
     return [c["chunk_text"] for c in chunks if c.get("chunk_text")]
 
 
+def _retrieve_past_proposal_exemplar(ngo_id: str) -> str:
+    """Retrieve chunk excerpts from past winning proposals or project plans for few-shot style transfer."""
+    if not ngo_id:
+        return ""
+    try:
+        rows = pool.fetch_all(
+            """
+            select c.chunk_text, d.filename, d.doc_type
+            from document_chunks c
+            join ngo_documents d on d.id = c.document_id
+            where c.ngo_id = %s
+              and (
+                  d.doc_type in ('past_proposal', 'annual_report', 'project_plan')
+                  or d.filename ilike '%proposal%'
+                  or d.filename ilike '%logframe%'
+              )
+            order by c.chunk_index asc
+            limit 3
+            """,
+            (ngo_id,),
+        )
+        if rows:
+            return "\n\n---\n\n".join(r["chunk_text"] for r in rows if r.get("chunk_text"))
+    except Exception as exc:
+        logger.warning("Could not fetch past proposal exemplar for %s: %s", ngo_id, exc)
+    return ""
+
+
+def _get_sector_guidance(grant: dict[str, Any], ngo_profile: dict[str, Any]) -> dict[str, str]:
+    """Provide tailored problem, intervention, activity, and budget guidelines based on grant sector."""
+    text = (
+        f"{grant.get('title', '')} {grant.get('description', '')} "
+        f"{' '.join(grant.get('sectors') or [])} {' '.join(ngo_profile.get('sectors') or [])}"
+    ).lower()
+
+    if any(k in text for k in ("kusum", "solar", "energy", "renewable", "irrigation", "pump", "farmer", "agriculture")):
+        return {
+            "sector_name": "Rural Renewable Energy & Agrarian Livelihoods",
+            "problem_focus": (
+                "Groundwater extraction crisis, escalating diesel expenditures for irrigation, frequent daytime "
+                "grid power outages, feeder-level technical line losses, and procedural/digital information asymmetry "
+                "hindering small and marginal farmers from accessing PM-KUSUM capital subsidies."
+            ),
+            "intervention_focus": (
+                "Grassroots mobilization and farmer chaupals across rural blocks; technical pump capacity sizing "
+                "(3HP/5HP/7.5HP DC/AC); handholding through state renewable portal (Mahaurja/MSEDCL); tripartite credit "
+                "facilitation with State Bank of India and regional rural banks (RRBs); feeder solarization coordination."
+            ),
+            "activity_focus": (
+                "100+ village chaupals and gram sabhas; 15 joint credit facilitation camps; 7/12 land record & NOC "
+                "documentation clinics; technical feasibility site visits; installation verification & grievance helpline."
+            ),
+            "budget_focus": (
+                "Tier 1: Senior Project Coordinator, Field Mobilizers, Solar Technical Engineers (monthly rates x duration).\n"
+                "Tier 2: Farmer Chaupal Logistics, Informational Booklets & IEC kits, Credit Camp venues, Beneficiary registration facilitation.\n"
+                "Tier 3: GPS Survey & Feasibility Tools, Midterm Monitoring & Evaluation, Statutory CA Audit."
+            ),
+        }
+    elif any(k in text for k in ("child", "vatsalya", "health", "nutrition", "malnutrition", "medical", "maternal")):
+        return {
+            "sector_name": "Child Protection, Healthcare & Maternal Nutrition",
+            "problem_focus": (
+                "Prevalence of Severe and Moderate Acute Malnutrition (SAM/MAM) in rural/tribal belts, infant and "
+                "under-5 mortality, anemia among adolescent girls and lactating mothers, lack of accessible primary healthcare, "
+                "and fragile child protection safety nets."
+            ),
+            "intervention_focus": (
+                "Deployment of Mobile Medical Units (MMU) with diagnostic equipment; community growth-monitoring "
+                "drives with Anganwadis; Supplementary Nutrition Therapy (THR/RUTF); immunization tracking; adolescent "
+                "anemia reduction and village child protection committees (VCPCs)."
+            ),
+            "activity_focus": (
+                "Monthly doorstep diagnostic camps; antenatal/postnatal maternal checkups; malnutrition screening "
+                "and distribution of high-protein micro-nutrient kits; community health & sanitation chaupals."
+            ),
+            "budget_focus": (
+                "Tier 1: Medical Officers, Auxiliary Nurse Midwives (ANMs), Community Health Workers (monthly rates x duration).\n"
+                "Tier 2: Diagnostic rapid tests, Essential generic medicines, Micro-nutrient & protein kits, First-aid supplies.\n"
+                "Tier 3: Mobile health unit vehicle operational costs/fuel, Beneficiary EHR database tracking, Impact evaluation & statutory audit."
+            ),
+        }
+    else:  # Education & Skill Development (EOTO archetype)
+        return {
+            "sector_name": "Remedial Education, FLN & Holistic Skill Development",
+            "problem_focus": (
+                "Severe foundational learning deficits (FLN) in vernacular medium schools, post-pandemic learning "
+                "regression, lack of digital infrastructure, and high secondary school dropout risks among underprivileged students."
+            ),
+            "intervention_focus": (
+                "Structured after-school remedial coaching for Grades 8-10; Foundational Literacy & Numeracy (FLN) "
+                "interventions for primary grades; hands-on digital literacy and computer labs; life skills, exposure visits, "
+                "and psychometric career guidance."
+            ),
+            "activity_focus": (
+                "Daily remedial classes in Math, Science, and English; weekly computer literacy practicals; distribution "
+                "of FLN learning kits and school supplies; bi-monthly pre/post assessment tests; parent-teacher meetings."
+            ),
+            "budget_focus": (
+                "Tier 1: Center Remedial Teachers, Computer Instructors, Senior Social Worker (SSW) coordinators (monthly rates x duration).\n"
+                "Tier 2: Student Educational Kits (school bags, notebooks, geometry boxes), FLN instructional materials, Computer hardware/connectivity.\n"
+                "Tier 3: Educational exposure visits, Annual exhibition & sports meet, Baseline/endline assessments, Statutory audit."
+            ),
+        }
+
+
 def _retrieve_context(ngo_id: str, section_key: str, k: int = _CONTEXT_CHUNKS_PER_SECTION) -> str:
     """Pull the k most relevant chunks from this NGO's own documents for a section."""
     query_text = _SECTION_RETRIEVAL_QUERY.get(section_key, section_key)
@@ -477,16 +582,52 @@ def draft_proposal(state: GrantSetuState) -> GrantSetuState:
         evidence_chunks = _retrieve_all_evidence(ngo_id, limit=8)
         evidence_context = "\n---\n".join(evidence_chunks) if evidence_chunks else ""
 
-        sections_spec = "\n".join(
-            f'- "{s["key"]}" ({s["title"]}): {s["instruction"]}'
-            for s in template_def
-        )
+        # Retrieve style transfer exemplar and sector guidance
+        past_exemplar = _retrieve_past_proposal_exemplar(ngo_id)
+        sector_guide = _get_sector_guidance(grant, ngo_profile)
+
+        # Build dynamic section instructions tailored to the grant's sector
+        adapted_specs = []
+        for s in template_def:
+            key = s["key"]
+            title = s["title"]
+            instr = s["instruction"]
+            if key == "problem_statement":
+                instr += f" Focus on: {sector_guide['problem_focus']}"
+            elif key == "proposed_intervention":
+                instr += f" Tailor specifically to: {sector_guide['intervention_focus']}"
+            elif key == "activity_and_impact_matrix":
+                instr += f" Frame activities around: {sector_guide['activity_focus']}"
+            elif key in ("line_item_budget", "budget"):
+                instr += (
+                    f" Structure into 3 explicit tiers:\n{sector_guide['budget_focus']}\n"
+                    "Provide columns: | Sr. No. | Particulars / Program | Details & Specifications | Rate (INR) | Quantity | Total Amount (INR) |. "
+                    "Ensure unit arithmetic is explicit (e.g. INR 15,000/mo x 2 staff x 12 mos = INR 3,60,000)."
+                )
+            adapted_specs.append(f'- "{key}" ({title}): {instr}')
+
+        sections_spec = "\n".join(adapted_specs)
+
+        exemplar_prompt_block = ""
+        if past_exemplar:
+            exemplar_prompt_block = f"""
+=============================================================================
+GOLD STANDARD PAST WINNING PROPOSAL REFERENCE (STYLE & TONE EXEMPLAR):
+{past_exemplar}
+
+STYLE TRANSFER MANDATE:
+- Mirror the dense, authoritative institutional vocabulary and grassroots credibility of this reference.
+- Emulate the exact unit-cost arithmetic style (e.g. INR X/unit x Y units = INR Total) and multi-tier itemization.
+- Ground historical track records in the certified vault evidence below.
+=============================================================================
+"""
 
         prompt = f"""You are an elite, highly credentialed institutional grant writer in India.
 Draft a complete, highly persuasive, professionally structured grant proposal for {ngo_profile.get('name', 'the NGO')}, applying to:
 Grant: "{grant.get('title', 'Target Grant Opportunity')}" (Funder: {grant.get('funder_name', 'Grant Agency')})
 
 Template Format: [{template_type.upper()}]
+Target Sector Context: [{sector_guide['sector_name']}]
 NGO Mission: {ngo_profile.get('mission', '')}
 NGO Sectors: {', '.join(ngo_profile.get('sectors') or [])}
 NGO Location: {ngo_profile.get('location', '')}
@@ -498,15 +639,17 @@ Statutory Credentials:
 
 CERTIFIED NGO DOCUMENT VAULT EVIDENCE:
 {evidence_context if evidence_context else "No prior document chunks uploaded."}
-
+{exemplar_prompt_block}
 Required Sections to Draft:
 {sections_spec}
 
 Formatting Rules:
 1. Every section must be written in rich, formal GitHub Flavored Markdown.
 2. For matrix, timeline, or budget sections, provide a complete Markdown table with exact column headers.
-3. GROUNDING MANDATE: Ground all historical metrics, founding years, and past milestones strictly in the document evidence.
-4. Output valid JSON mapping each section key to its drafted content string.
+3. 3-TIER BUDGET MANDATE: In the Line Item Budget, organize the table into Tier 1 (Human Resources & Instructors), Tier 2 (Direct Beneficiary Support & Field Activities), and Tier 3 (Logistics, M&E & Audit).
+4. ANTI-FLUFF MANDATE: Ground every intervention in specific field roles (e.g. Senior Social Worker, Field Mobilizer, Remedial Teacher), specific field tools (e.g. Baseline KAP Survey, Mahaurja Application Portal, 7/12 Land Extract), and tangible unit economics.
+5. GROUNDING MANDATE: Ground all historical metrics, founding years, and past milestones strictly in the document evidence.
+6. Output valid JSON mapping each section key to its drafted content string.
 
 Respond ONLY with valid JSON:
 {{"<section_key>": "<section_markdown_content>", ...}}"""

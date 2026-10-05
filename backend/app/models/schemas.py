@@ -200,6 +200,14 @@ class ReviseRequest(BaseModel):
     rerun_verification: bool = True
 
 
+class RefineSectionRequest(BaseModel):
+    """Targeted single-section refinement with custom instruction."""
+
+    section_key: str
+    instruction: str
+    temperature: float = 0.2
+
+
 # --- Applications ------------------------------------------------------------
 class ApplicationOut(BaseModel):
     id: str

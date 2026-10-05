@@ -167,3 +167,81 @@ def test_fcra_negative_claim_is_supported_when_ngo_never_held_fcra():
     assert "never_held" in res["evidence_span"]
 
 
+def test_export_pdf_and_docx_generation(tmp_path):
+    """Verify that generate_proposal_pdf and generate_proposal_docx produce valid files."""
+    from app.services.export import generate_proposal_pdf, generate_proposal_docx
+
+    ngo_profile = {
+        "id": "ngo-uuid-1",
+        "name": "Samarpan Social Welfare Trust",
+        "darpan_id": "MH/2020/0789123",
+        "location": "Nashik, Maharashtra",
+        "mission": "Empowering rural agrarian communities.",
+    }
+    grant = {
+        "id": "grant-uuid-1",
+        "title": "PM-KUSUM Solar Irrigation Mission",
+        "funder_name": "Ministry of New and Renewable Energy",
+        "funder_type": "govt",
+    }
+    draft_sections = {
+        "executive_summary": "Executive summary with **bold highlights** and ₹35,00,000 ask.",
+        "line_item_budget": (
+            "| Sr. No. | Particulars | Rate (₹) | Quantity | Total Amount (₹) |\n"
+            "|---|---|---|---|---|\n"
+            "| 1 | Solar Technical Engineer | ₹30,000/mo | 12 mos | ₹3,60,000 |\n"
+            "| 2 | Field Mobilizer | ₹18,000/mo | 24 mos | ₹4,32,000 |\n"
+        ),
+    }
+
+    pdf_out = tmp_path / "proposal.pdf"
+    docx_out = tmp_path / "proposal.docx"
+
+    generate_proposal_pdf(ngo_profile, grant, draft_sections, pdf_out, proposal_id="prop-test-01")
+    generate_proposal_docx(ngo_profile, grant, draft_sections, docx_out, proposal_id="prop-test-01")
+
+    assert pdf_out.exists()
+    assert pdf_out.stat().st_size > 1000
+    assert docx_out.exists()
+    assert docx_out.stat().st_size > 1000
+
+
+def test_refine_section_endpoint():
+    """Verify that refine_section calls LLM and updates the proposal section."""
+    from app.api.proposals import refine_section
+    from app.models.schemas import RefineSectionRequest
+
+    with patch("app.api.proposals.pool") as mock_pool, \
+         patch("app.services.llm.invoke_with_fallback") as mock_llm, \
+         patch("app.api.proposals._fetch_verification_results") as mock_fetch:
+
+        mock_pool.fetch_one.return_value = {
+            "proposal_id": "prop-uuid-1",
+            "application_id": "app-uuid-1",
+            "version": 1,
+            "ngo_id": "ngo-uuid-1",
+            "grant_id": "grant-uuid-1",
+            "grant_title": "PM-KUSUM",
+            "funder_name": "MNRE",
+            "ngo_name": "Samarpan Trust",
+            "ngo_mission": "Rural empowerment",
+            "sections": '{"budget": "Original budget text"}',
+            "status": "draft",
+        }
+        mock_llm.return_value = "### Refined Budget\n| Item | Cost |\n|---|---|\n| Solar Units | INR 5,00,000 |"
+        mock_fetch.return_value = ([], 0.0)
+
+        req = RefineSectionRequest(
+            section_key="budget",
+            instruction="Convert into a unit cost table",
+            temperature=0.2,
+        )
+
+        resp = refine_section("prop-uuid-1", req, _user=None)
+
+        assert resp.proposal_id == "prop-uuid-1"
+        assert resp.status == "revised"
+        assert "Refined Budget" in resp.sections["budget"]
+        assert mock_pool.execute.called
+
+

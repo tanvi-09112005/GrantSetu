@@ -4,13 +4,16 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+import re
+import tempfile
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
 
 from app.api.deps import maybe_user, owned_ngo
 from app.db import pool
-from app.graph.nodes.draft import TEMPLATES, draft_proposal
+from app.graph.nodes.draft import SECTION_TITLES, TEMPLATES, draft_proposal
 from app.graph.nodes.extract_claims import extract_claims
 from app.graph.nodes.verify import verify_claims
 from app.models.schemas import (
@@ -18,8 +21,10 @@ from app.models.schemas import (
     ClaimVerdict,
     GenerateProposalRequest,
     ProposalResponse,
+    RefineSectionRequest,
     ReviseRequest,
 )
+from app.services.export import generate_proposal_docx, generate_proposal_pdf
 from app.services.verification_gate import ensure_verified
 
 logger = logging.getLogger(__name__)
@@ -520,3 +525,225 @@ def export(
         "format": format,
         "content": full_md,
     }
+
+
+@router.get("/{proposal_id}/export-pdf")
+def export_pdf(
+    proposal_id: str,
+    _user: dict | None = Depends(maybe_user),
+):
+    """Generate and download a submission-ready, institutional PDF dossier with letterhead, TOC, and stamped sign-off."""
+    row = pool.fetch_one(
+        """
+        select p.id as proposal_id, p.sections,
+               g.id as grant_id, g.title as grant_title, g.funder_name, g.funder_type, g.description as grant_desc,
+               n.id as ngo_id, n.name as ngo_name, n.mission as ngo_mission, n.darpan_id, n.location, n.tax_exemption, n.fcra_status
+        from proposals p
+        join applications a on a.id = p.application_id
+        join grants g on g.id = a.grant_id
+        join ngo_profiles n on n.id = a.ngo_id
+        where p.id = %s
+        """,
+        (proposal_id,),
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+
+    ngo_profile = {
+        "id": str(row["ngo_id"]),
+        "name": row["ngo_name"],
+        "mission": row["ngo_mission"],
+        "darpan_id": row["darpan_id"],
+        "location": row["location"],
+        "tax_exemption": row["tax_exemption"],
+        "fcra_status": row["fcra_status"],
+    }
+    grant = {
+        "id": str(row["grant_id"]),
+        "title": row["grant_title"],
+        "funder_name": row["funder_name"],
+        "funder_type": row["funder_type"],
+        "description": row["grant_desc"],
+    }
+    sections = row["sections"]
+    if isinstance(sections, str):
+        try:
+            sections = json.loads(sections)
+        except Exception:
+            sections = {}
+
+    safe_ngo = re.sub(r"[^\w\-]", "_", row["ngo_name"] or "NGO")[:20]
+    safe_grant = re.sub(r"[^\w\-]", "_", row["grant_title"] or "Grant")[:25]
+    pdf_filename = f"Grant_Proposal_{safe_ngo}_{safe_grant}.pdf"
+    pdf_path = Path(tempfile.gettempdir()) / f"GrantSetu_Proposal_{proposal_id[:8]}.pdf"
+
+    generate_proposal_pdf(
+        ngo_profile=ngo_profile,
+        grant=grant,
+        draft_sections=sections,
+        output_path=pdf_path,
+        ngo_id=str(row["ngo_id"]),
+        proposal_id=proposal_id,
+    )
+
+    return FileResponse(
+        path=str(pdf_path),
+        media_type="application/pdf",
+        filename=pdf_filename,
+    )
+
+
+@router.get("/{proposal_id}/export-docx")
+def export_docx(
+    proposal_id: str,
+    _user: dict | None = Depends(maybe_user),
+):
+    """Generate and download an editable Microsoft Word (.docx) document with styled tables and signature block."""
+    row = pool.fetch_one(
+        """
+        select p.id as proposal_id, p.sections,
+               g.id as grant_id, g.title as grant_title, g.funder_name, g.funder_type, g.description as grant_desc,
+               n.id as ngo_id, n.name as ngo_name, n.mission as ngo_mission, n.darpan_id, n.location, n.tax_exemption, n.fcra_status
+        from proposals p
+        join applications a on a.id = p.application_id
+        join grants g on g.id = a.grant_id
+        join ngo_profiles n on n.id = a.ngo_id
+        where p.id = %s
+        """,
+        (proposal_id,),
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+
+    ngo_profile = {
+        "id": str(row["ngo_id"]),
+        "name": row["ngo_name"],
+        "mission": row["ngo_mission"],
+        "darpan_id": row["darpan_id"],
+        "location": row["location"],
+        "tax_exemption": row["tax_exemption"],
+        "fcra_status": row["fcra_status"],
+    }
+    grant = {
+        "id": str(row["grant_id"]),
+        "title": row["grant_title"],
+        "funder_name": row["funder_name"],
+        "funder_type": row["funder_type"],
+        "description": row["grant_desc"],
+    }
+    sections = row["sections"]
+    if isinstance(sections, str):
+        try:
+            sections = json.loads(sections)
+        except Exception:
+            sections = {}
+
+    safe_ngo = re.sub(r"[^\w\-]", "_", row["ngo_name"] or "NGO")[:20]
+    safe_grant = re.sub(r"[^\w\-]", "_", row["grant_title"] or "Grant")[:25]
+    docx_filename = f"Grant_Proposal_{safe_ngo}_{safe_grant}.docx"
+    docx_path = Path(tempfile.gettempdir()) / f"GrantSetu_Proposal_{proposal_id[:8]}.docx"
+
+    generate_proposal_docx(
+        ngo_profile=ngo_profile,
+        grant=grant,
+        draft_sections=sections,
+        output_path=docx_path,
+        ngo_id=str(row["ngo_id"]),
+        proposal_id=proposal_id,
+    )
+
+    return FileResponse(
+        path=str(docx_path),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=docx_filename,
+    )
+
+
+@router.post("/{proposal_id}/refine-section", response_model=ProposalResponse)
+def refine_section(
+    proposal_id: str,
+    payload: RefineSectionRequest,
+    _user: dict | None = Depends(maybe_user),
+) -> ProposalResponse:
+    """Targeted refinement of a single proposal section using LLM instruction."""
+    row = pool.fetch_one(
+        """
+        select p.id as proposal_id, p.application_id, p.version, p.sections, p.status,
+               a.ngo_id, a.grant_id,
+               g.title as grant_title, g.funder_name,
+               n.name as ngo_name, n.mission as ngo_mission
+        from proposals p
+        join applications a on a.id = p.application_id
+        join grants g on g.id = a.grant_id
+        join ngo_profiles n on n.id = a.ngo_id
+        where p.id = %s
+        """,
+        (proposal_id,),
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+
+    sections = row["sections"]
+    if isinstance(sections, str):
+        try:
+            sections = json.loads(sections)
+        except Exception:
+            sections = {}
+
+    current_text = sections.get(payload.section_key, "")
+    section_title = SECTION_TITLES.get(payload.section_key, payload.section_key.replace("_", " ").title())
+
+    prompt = f"""You are an elite institutional grant proposal writer in India.
+Refine and enhance the following specific section of a grant proposal for {row['ngo_name']}.
+
+Target Grant: "{row['grant_title']}" (Funder: {row['funder_name']})
+Target Section: {section_title} (Key: "{payload.section_key}")
+
+CURRENT SECTION CONTENT:
+{current_text if current_text else "[Section is currently empty]"}
+
+USER INSTRUCTION FOR REFINEMENT:
+{payload.instruction}
+
+Rules:
+1. Maintain or enhance factual grounding and high professional institutional quality.
+2. If improving budget or matrices, format them as structured Markdown tables with exact column headers.
+3. Incorporate the user's specific instruction accurately.
+4. Output ONLY the refined section markdown content (do NOT include JSON wrappers, markdown fences ```markdown, or conversational preamble)."""
+
+    try:
+        from app.services.llm import invoke_with_fallback
+        refined_content = invoke_with_fallback(prompt, tier="flash", temperature=payload.temperature)
+        if refined_content and refined_content.strip():
+            cleaned = refined_content.strip()
+            # Strip accidental ```markdown fences if LLM wrapped it
+            if cleaned.startswith("```markdown"):
+                cleaned = cleaned[11:]
+            elif cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            sections[payload.section_key] = cleaned.strip()
+    except Exception as e:
+        logger.error("Section refinement failed: %s", e)
+        raise HTTPException(status_code=502, detail=f"Refinement failed: {e}")
+
+    pool.execute(
+        "update proposals set sections = %s, updated_at = now() where id = %s",
+        (json.dumps(sections), proposal_id),
+    )
+
+    verdicts, rate = _fetch_verification_results(proposal_id)
+
+    return ProposalResponse(
+        proposal_id=proposal_id,
+        application_id=str(row["application_id"]),
+        grant_id=str(row["grant_id"]),
+        ngo_id=str(row["ngo_id"]),
+        template_type="standard",
+        sections=sections,
+        verification_results=verdicts,
+        fabrication_rate=rate,
+        revision_count=max(0, int(row.get("version") or 1) - 1),
+        status="revised",
+    )

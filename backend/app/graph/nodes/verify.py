@@ -205,16 +205,18 @@ def verify_claims(state: GrantSetuState) -> GrantSetuState:
         }
 
     # Fetch document chunks from document_chunks table (correct schema: chunk_text, section_title)
-    chunks = pool.fetch_all(
-        """
-        select id, chunk_text, section_title, chunk_index
-        from document_chunks
-        where ngo_id = %s
-        order by chunk_index asc
-        limit 15
-        """,
-        (ngo_id,),
-    )
+    chunks = []
+    if ngo_id and len(str(ngo_id)) == 36 and str(ngo_id).count("-") == 4:
+        chunks = pool.fetch_all(
+            """
+            select id, chunk_text, section_title, chunk_index
+            from document_chunks
+            where ngo_id = %s
+            order by chunk_index asc
+            limit 15
+            """,
+            (ngo_id,),
+        )
 
     # Fetch NGO profile
     ngo_profile = state.get("ngo_profile")

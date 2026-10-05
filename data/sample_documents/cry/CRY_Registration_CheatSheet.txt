@@ -1,0 +1,46 @@
+=============================================================================
+GRANTSETU — SAMPLE NGO TEST CREDENTIALS: CHILD RIGHTS AND YOU (CRY)
+Use this cheatsheet to fill the 3-step registration wizard on http://localhost:5173/register
+=============================================================================
+
+STEP 1: ADMIN & CONTACT IDENTITY
+---------------------------------
+Admin Full Name:        Puja Marwaha
+Official Designation:   Trustee (select from dropdown or type "Managing Trustee")
+Contact Mobile Number:  9811234567
+Login Work Email:       admin@crymail.org  (or your personal test email)
+Account Password:       CryTestPass@123    (min 6 characters)
+
+STEP 2: STATUTORY NGO CREDENTIALS
+---------------------------------
+Official NGO Name:      Child Rights and You (CRY)
+Incorporation Year:     1979
+State:                  Delhi (or select 'Delhi' from dropdown)
+District:               South Delhi
+NGO Darpan ID:          DL/2009/0014766   (Exact NITI Aayog registered format)
+
+Legal Status Checkboxes:
+  [X] 12A Registration Active     (URN: AAATC1234A)
+  [X] 80G Tax Exemption Active    (URN: AAATC1234B)
+  [X] FCRA Registered & Active    (FCRA No: 231650035, Valid till 2028)
+
+STEP 3: VERIFICATION PROOF UPLOADS (Files in this folder)
+---------------------------------
+1. Darpan Certificate (Mandatory):
+   -> Choose File: CRY_Darpan_Registration_Certificate.pdf
+   (Contains "DL/2009/0014766" — triggers green "document_matched" verification)
+
+2. 12A Certificate (Optional / Recommended):
+   -> Choose File: CRY_12A_Registration_Certificate.pdf
+
+3. 80G Certificate (Optional / Recommended):
+   -> Choose File: CRY_80G_Certificate.pdf
+
+ADDITIONAL DOCUMENTS IN THIS PACK (For Task 3 Document Vault):
+--------------------------------------------------------------
+- CRY_FCRA_Registration_Certificate.pdf    (Ministry of Home Affairs FCRA Proof)
+- CRY_Audited_Financial_Statement_FY24.pdf  (FY24 Balance Sheet with 4.2% Admin cap)
+- CRY_Official_Logo.png                    (Transparent header branding logo)
+- CRY_Official_Stamp_Seal.png              (Transparent official circular rubber stamp)
+- CRY_Authorized_Signatory.png             (Authorized signatory signature image)
+=============================================================================

@@ -1,0 +1,4 @@
+scenario,sector,base_total,base_supported,base_partial,base_unsupported,base_fab_rate,gs_total,gs_supported,gs_partial,gs_unsupported,gs_fab_rate,groundedness,hallucination_reduction
+Samarpan Social Welfare Trust,Renewable Energy / Agriculture,7,0,0,7,100.0%,8,2,0,6,75.0%,25.0%,25.0%
+Each One Teach One,Remedial Education & FLN,6,0,0,6,100.0%,7,1,0,6,85.7%,14.3%,14.3%
+Child Rights and You (CRY),Child Health & Nutrition,4,0,0,4,100.0%,6,0,0,6,100.0%,0.0%,0.0%

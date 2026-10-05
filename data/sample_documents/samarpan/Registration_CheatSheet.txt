@@ -1,0 +1,60 @@
+=============================================================================
+GRANTSETU — COMPREHENSIVE NGO DOCUMENT SUITE: SAMARPAN SOCIAL WELFARE TRUST
+Location: data/sample_documents/samarpan/
+Use these documents for http://localhost:5173/register and http://localhost:5173/vault
+=============================================================================
+
+--- ONBOARDING & REGISTRATION (http://localhost:5173/register) ---
+Step 1: Admin & Identity
+  Name:         Sunita Deshmukh
+  Designation:  Managing Trustee
+  Mobile:       9822334455
+  Work Email:   sunita.deshmukh@samarpantrust.org (or any fresh email)
+  Password:     SamarpanTest@123
+
+Step 2: Statutory Credentials
+  Name:         Samarpan Social Welfare Trust
+  Year:         2014 (or your DB date)
+  State:        Maharashtra  |  District: Nashik
+  Darpan ID:    MH/2020/0789123
+  Legal Status: [X] 12A Active (AAATS9876ME20211)
+                [X] 80G Active (AAATS9876MF20212)
+                [ ] FCRA Approved (Leave unchecked - domestic NGO)
+
+Step 3: Proof Uploads
+  1. Darpan Certificate (Mandatory): Samarpan_Darpan_Certificate.pdf
+  2. 12A Certificate (Optional):     Samarpan_12A_Certificate.pdf
+  3. 80G Certificate (Optional):     Samarpan_80G_Certificate.pdf
+
+=============================================================================
+--- DOCUMENT VAULT SLOTS & UPLOADS (http://localhost:5173/vault) ---
+=============================================================================
+
+1. STATUTORY DOCUMENTS:
+   • Darpan Certificate:   Samarpan_Darpan_Certificate.pdf
+   • 12A / 12AB Cert:      Samarpan_12A_Certificate.pdf
+   • 80G Approval:         Samarpan_80G_Certificate.pdf
+   • CSR-1 Registration:   Samarpan_CSR1_Registration_Certificate.pdf
+                           (MCA CSR-1 Reg: CSR00048219 for corporate CSR funding)
+
+2. FINANCIAL & AUDITS:
+   • Audited Balance Sheet: Samarpan_Audited_Balance_Sheet_FY25.pdf
+                           (Assets: ₹4.83 Cr, Expenditure: ₹2.65 Cr, Admin: 4.6%)
+   • ITR-7 Tax Return:      Samarpan_ITR7_Acknowledgment_AY25.pdf
+                           (AY 2024-25, ₹3.57 Cr Inflow, ₹0 Tax u/s 11/12A)
+   • Annual Budget:         Samarpan_Annual_Budget_FY26.pdf
+                           (Board-Approved FY26 Budget: ₹4.15 Cr across 4 pillars)
+
+3. PAST IMPACT & REPORTS:
+   • Annual Report:         Samarpan_Annual_Report_FY25.pdf
+                           (2-Page Multi-Pillar Report: 18,540 patients, 1,280 children, 45 SHGs)
+   • Past Winning Proposal: Samarpan_Past_Winning_Proposal_NABARD.pdf
+                           (Awarded ₹45 Lakhs from NABARD, 94.5/100 execution score)
+   • Project Plan/Logframe: Samarpan_Project_Plan_Logframe_FY26.pdf
+                           (Complete Theory of Change, Objective Indicators, & Risk Matrix)
+
+4. BRANDING ASSETS:
+   • Official Logo:        logo.png (Transparent high-resolution emblem)
+   • Rubber Stamp / Seal:  stamp.png (Official double-circle trust seal)
+   • Authorized Signature: signature.png (Sunita Deshmukh signature)
+=============================================================================

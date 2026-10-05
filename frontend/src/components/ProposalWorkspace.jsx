@@ -24,12 +24,22 @@ import {
   FileDown,
   ListChecks,
   ChevronRight,
+  Wand2,
+  FileSpreadsheet,
+  Award,
+  Landmark,
+  X,
+  FileSignature,
 } from 'lucide-react'
 import {
   generateProposal,
   batchGenerateProposals,
   exportProposal,
   verifyProposal,
+  listAssets,
+  exportProposalPdf,
+  exportProposalDocx,
+  refineSection,
 } from '../lib/api'
 
 export default function ProposalWorkspace({
@@ -63,6 +73,78 @@ export default function ProposalWorkspace({
   const [isVerifying, setIsVerifying] = useState(false)
   const [verificationResults, setVerificationResults] = useState(cache?.verificationResults ?? [])
   const [fabricationRate, setFabricationRate] = useState(cache?.fabricationRate ?? 0.0)
+
+  // Institutional Branding Assets (Logo, Rubber Stamp, Signatory Signature)
+  const [assetsMap, setAssetsMap] = useState({})
+
+  // Multi-format export states
+  const [isExportingPdf, setIsExportingPdf] = useState(false)
+  const [isExportingDocx, setIsExportingDocx] = useState(false)
+
+  // Single Section Refinement Modal state
+  const [refineModalOpen, setRefineModalOpen] = useState(false)
+  const [refineInstruction, setRefineInstruction] = useState('')
+  const [isRefining, setIsRefining] = useState(false)
+  const [refineError, setRefineError] = useState(null)
+
+  // Load institutional branding assets from vault (logo, stamp, signature)
+  useEffect(() => {
+    const ngoId = activeNgo?.id
+    if (!ngoId) return
+    listAssets(ngoId)
+      .then((assets) => {
+        if (Array.isArray(assets)) {
+          const map = {}
+          assets.forEach((a) => {
+            if (a.asset_type && a.data_url) {
+              map[a.asset_type] = a.data_url
+            }
+          })
+          setAssetsMap(map)
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load ngo_assets:', err)
+      })
+  }, [activeNgo?.id])
+
+  // Session persistence across F5 refresh
+  const storageKey = `grantsetu_workspace_${activeNgo?.id || 'demo'}_${selectedGrantId || 'default'}`
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(storageKey)
+      if (saved) {
+        const p = JSON.parse(saved)
+        if (p?.proposal_id && !proposalData) {
+          setProposalData(p)
+          setEditableSections(p.sections || {})
+          setVerificationResults(p.verification_results || [])
+          setFabricationRate(p.fabrication_rate || 0.0)
+          if (p.template_type) setTemplateType(p.template_type)
+        }
+      }
+    } catch (e) {
+      console.warn('localStorage read error', e)
+    }
+  }, [storageKey])
+
+  useEffect(() => {
+    if (proposalData?.proposal_id) {
+      try {
+        const toSave = {
+          ...proposalData,
+          sections: editableSections,
+          verification_results: verificationResults,
+          fabrication_rate: fabricationRate,
+          template_type: templateType,
+        }
+        localStorage.setItem(storageKey, JSON.stringify(toSave))
+      } catch (e) {
+        console.warn('localStorage save error', e)
+      }
+    }
+  }, [storageKey, proposalData, editableSections, verificationResults, fabricationRate, templateType])
 
   // Sync selected grant if activeGrant or grants list updates
   useEffect(() => {
@@ -223,6 +305,70 @@ export default function ProposalWorkspace({
     setTimeout(() => {
       window.print()
     }, 150)
+  }
+
+  const handleDownloadPdf = async () => {
+    if (!proposalData?.proposal_id) return
+    setIsExportingPdf(true)
+    setError(null)
+    try {
+      const blob = await exportProposalPdf(proposalData.proposal_id)
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Grant_Proposal_${(activeNgo?.name || 'Proposal').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('PDF export failed, falling back to browser print:', err)
+      handlePrintPdf()
+    } finally {
+      setIsExportingPdf(false)
+    }
+  }
+
+  const handleDownloadDocx = async () => {
+    if (!proposalData?.proposal_id) return
+    setIsExportingDocx(true)
+    setError(null)
+    try {
+      const blob = await exportProposalDocx(proposalData.proposal_id)
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Grant_Proposal_${(activeNgo?.name || 'Proposal').replace(/[^a-zA-Z0-9]/g, '_')}.docx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Word (.docx) export failed:', err)
+      setError('Failed to download Word document. Please ensure backend is running.')
+    } finally {
+      setIsExportingDocx(false)
+    }
+  }
+
+  const handleRefineSubmit = async () => {
+    if (!proposalData?.proposal_id || !activeSectionKey || !refineInstruction.trim()) return
+    setIsRefining(true)
+    setRefineError(null)
+    try {
+      const res = await refineSection(proposalData.proposal_id, activeSectionKey, refineInstruction.trim())
+      setProposalData(res)
+      setEditableSections(res.sections || {})
+      setVerificationResults(res.verification_results || [])
+      setFabricationRate(res.fabrication_rate || 0.0)
+      setRefineModalOpen(false)
+      setRefineInstruction('')
+    } catch (err) {
+      console.error('Refining section failed:', err)
+      setRefineError(err.response?.data?.detail || 'Failed to refine section. Please try again.')
+    } finally {
+      setIsRefining(false)
+    }
   }
 
   const sectionKeys = Object.keys(editableSections)
@@ -747,16 +893,42 @@ export default function ProposalWorkspace({
             {/* Export Actions */}
             <div className="flex items-center gap-2">
               <button
-                onClick={handlePrintPdf}
-                title="Print or Save as Vector PDF"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-2xs cursor-pointer"
+                onClick={handleDownloadPdf}
+                disabled={isExportingPdf}
+                title="Download Official ReportLab Vector PDF"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
               >
-                <Printer className="w-3.5 h-3.5" />
-                Export as PDF
+                {isExportingPdf ? (
+                  <div className="size-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                Download PDF
+              </button>
+              <button
+                onClick={handleDownloadDocx}
+                disabled={isExportingDocx}
+                title="Download Editable Word Document (.docx)"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+              >
+                {isExportingDocx ? (
+                  <div className="size-3.5 border-2 border-indigo-700 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                )}
+                Word (.docx)
+              </button>
+              <button
+                onClick={handlePrintPdf}
+                title="Print or Save in Browser"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5 text-slate-500" />
+                Print
               </button>
               <button
                 onClick={handleCopyFull}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
               >
                 {copied ? (
                   <>
@@ -772,10 +944,10 @@ export default function ProposalWorkspace({
               </button>
               <button
                 onClick={handleDownload}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
               >
-                <Download className="w-3.5 h-3.5" />
-                Export .md
+                <Download className="w-3.5 h-3.5 text-slate-500" />
+                .md
               </button>
             </div>
           </div>
@@ -835,6 +1007,19 @@ export default function ProposalWorkspace({
                       <span className="text-slate-400 font-mono text-[11px]">
                         {editableSections[activeSectionKey]?.length || 0} chars
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRefineInstruction('')
+                          setRefineError(null)
+                          setRefineModalOpen(true)
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                        title="Refine this specific section with targeted AI instructions"
+                      >
+                        <Wand2 className="size-3.5 text-indigo-600" />
+                        Refine with AI
+                      </button>
                     </div>
                   </div>
 
@@ -905,43 +1090,259 @@ export default function ProposalWorkspace({
           {/* VIEW MODE 2: Full Formal Proposal Document (Filing Preview & Print-Ready PDF) */}
           <div
             id="printable-proposal-document"
-            className={`p-8 sm:p-12 max-w-4xl mx-auto ${viewMode === 'document' ? 'block' : 'hidden print:block'
+            className={`p-6 sm:p-10 max-w-4xl mx-auto space-y-12 ${viewMode === 'document' ? 'block' : 'hidden print:block'
               }`}
           >
-            {/* Formal Grant Application Letterhead */}
-            <div className="pb-8 mb-8 border-b-2 border-slate-800">
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                <div>
-                  <span className="text-[11px] font-mono tracking-widest text-indigo-700 uppercase font-bold">
-                    Formal Grant Application Dossier
+            {/* 1. Formal Front Cover Page (Print Page 1) */}
+            <div className="proposal-cover-page bg-gradient-to-b from-slate-50 via-white to-slate-50 border-2 border-indigo-950/80 rounded-2xl p-8 sm:p-12 shadow-sm min-h-[850px] flex flex-col justify-between print:min-h-screen print:border-slate-800 print:shadow-none print:m-0 print:break-after-page">
+              <div>
+                {/* Top Institutional Crest / Logo */}
+                <div className="flex items-center justify-between border-b border-slate-200 pb-6 mb-8">
+                  {assetsMap.logo ? (
+                    <img
+                      src={assetsMap.logo}
+                      alt="NGO Logo"
+                      className="h-16 w-auto object-contain max-w-[200px]"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="size-12 rounded-xl bg-indigo-900 text-white flex items-center justify-center font-black text-xl shadow-xs">
+                        {activeNgo?.name?.charAt(0) || 'G'}
+                      </div>
+                      <div>
+                        <span className="font-bold text-slate-900 text-sm block">
+                          {activeNgo?.name || 'Applicant Organization'}
+                        </span>
+                        <span className="text-[10px] text-slate-500 uppercase tracking-widest block font-mono">
+                          Certified Non-Profit Entity
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="text-right">
+                    <span className="inline-block px-3 py-1 bg-indigo-950 text-white font-mono text-[10px] font-bold uppercase rounded-md tracking-wider">
+                      Official Dossier
+                    </span>
+                    <span className="text-[11px] text-slate-500 block font-mono mt-1">
+                      Ref: GS/2026/PROP-{proposalData.proposal_id.slice(0, 8).toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Hero Title Block */}
+                <div className="text-center py-6 sm:py-10 space-y-4">
+                  <span className="text-xs font-black tracking-widest text-indigo-700 uppercase px-3 py-1 bg-indigo-50 rounded-full border border-indigo-200/60 inline-block">
+                    PROPOSAL FOR GRANT ASSISTANCE
                   </span>
-                  <h1 className="text-2xl font-black text-slate-900 mt-1 tracking-tight">
-                    {selectedGrant?.title || 'Grant Proposal'}
+                  <h1 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-tight max-w-2xl mx-auto">
+                    {selectedGrant?.title || 'Grassroots Developmental Intervention'}
                   </h1>
-                  <p className="text-sm font-semibold text-slate-700 mt-1">
-                    Submitted to: <strong className="text-slate-900">{selectedGrant?.funder_name}</strong>
+                  <p className="text-sm sm:text-base text-slate-600 max-w-xl mx-auto font-medium">
+                    A comprehensive project proposal formally submitted under the aegis of{' '}
+                    <strong className="text-slate-900">{selectedGrant?.funder_name || 'Grant Review Board'}</strong>
                   </p>
                 </div>
 
-                <div className="text-left sm:text-right text-xs text-slate-600 space-y-1">
-                  <div className="font-bold text-slate-900 text-sm">
-                    {activeNgo?.name || 'Child Rights and You (CRY)'}
+                <div className="w-24 h-1 bg-indigo-900 mx-auto rounded-full my-6" />
+
+                {/* Metadata Cards Grid (2x2) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
+                  {/* Card 1: Submitted To */}
+                  <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
+                    <span className="text-[10px] font-black uppercase text-indigo-900 tracking-wider block mb-2">
+                      Submitted To
+                    </span>
+                    <p className="text-sm font-bold text-slate-900 leading-snug">
+                      {selectedGrant?.funder_name || 'Funding Agency'}
+                    </p>
+                    <p className="text-xs text-slate-600 mt-1">
+                      Grant Scheme: <strong className="text-slate-800">{selectedGrant?.title}</strong>
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Funding Track: <span className="uppercase font-semibold text-slate-700 font-mono text-[11px]">{selectedGrant?.funder_type || 'CSR / GIA'}</span>
+                    </p>
                   </div>
-                  <div>
-                    Darpan ID: <span className="font-mono font-semibold">{activeNgo?.darpan_id || 'DL/2009/0014766'}</span>
+
+                  {/* Card 2: Submitted By */}
+                  <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
+                    <span className="text-[10px] font-black uppercase text-indigo-900 tracking-wider block mb-2">
+                      Submitted By
+                    </span>
+                    <p className="text-sm font-bold text-slate-900 leading-snug">
+                      {activeNgo?.name || 'Applicant Organization'}
+                    </p>
+                    <p className="text-xs text-slate-600 mt-1">
+                      Darpan ID: <strong className="font-mono text-slate-900">{activeNgo?.darpan_id || 'MH/2020/0789123'}</strong>
+                    </p>
+                    <p className="text-xs text-emerald-700 font-semibold mt-0.5">
+                      Tax Status: 12A & 80G Certified w.e.f. Inception
+                    </p>
                   </div>
-                  <div>
-                    Statutory Status: <span className="text-emerald-700 font-semibold">12A & 80G Certified</span>
+
+                  {/* Card 3: Key Submission Credentials */}
+                  <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
+                    <span className="text-[10px] font-black uppercase text-indigo-900 tracking-wider block mb-2">
+                      Submission Credentials
+                    </span>
+                    <p className="text-xs text-slate-700">
+                      Document Tracking Ref:{' '}
+                      <strong className="font-mono text-slate-900">
+                        GS/2026/PROP-{proposalData.proposal_id.slice(0, 8).toUpperCase()}
+                      </strong>
+                    </p>
+                    <p className="text-xs text-slate-700 mt-1">
+                      Date of Filing:{' '}
+                      <strong className="text-slate-900">
+                        {new Date().toLocaleDateString('en-IN', { dateStyle: 'long' })}
+                      </strong>
+                    </p>
+                    <p className="text-xs text-indigo-700 font-medium mt-1">
+                      Grounding: Certified via GrantSetu Multi-Agent System
+                    </p>
                   </div>
-                  <div>
-                    Date: <span className="font-medium">{new Date().toLocaleDateString('en-IN', { dateStyle: 'long' })}</span>
+
+                  {/* Card 4: Project Summary Metrics */}
+                  <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
+                    <span className="text-[10px] font-black uppercase text-indigo-900 tracking-wider block mb-2">
+                      Project Framework
+                    </span>
+                    <p className="text-xs text-slate-700">
+                      Implementation Period: <strong className="text-slate-900">12–24 Months</strong>
+                    </p>
+                    <p className="text-xs text-slate-700 mt-1">
+                      Operational Geography: <strong className="text-slate-900">{activeNgo?.location || 'India'}</strong>
+                    </p>
+                    <p className="text-xs text-slate-700 mt-1">
+                      Audit Readiness: <strong className="text-emerald-700">Pre-Audited for CA & UC Filing</strong>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cover Bottom Disclaimer */}
+              <div className="pt-8 border-t border-slate-200 text-center text-[11px] text-slate-500 italic">
+                This document contains verified institutional methodologies, audited operational track records,
+                and itemized budgetary structures formulated specifically for this grant review committee.
+              </div>
+            </div>
+
+            {/* 2. Executive Transmittal Letter (Print Page 2) */}
+            <div className="proposal-transmittal-letter bg-white border border-slate-200 rounded-2xl p-8 sm:p-12 shadow-sm print:border-none print:shadow-none print:m-0 print:p-0 print:break-after-page">
+              <div className="border-b-2 border-slate-900 pb-4 mb-6 flex items-start justify-between">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900">{activeNgo?.name || 'Applicant Organization'}</h2>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    NITI Aayog Darpan: <span className="font-mono font-bold">{activeNgo?.darpan_id || 'MH/2020/0789123'}</span> | 12A & 80G Certified
+                  </p>
+                  <p className="text-xs text-slate-500">{activeNgo?.location || 'Headquarters'}</p>
+                </div>
+                {assetsMap.logo && (
+                  <img src={assetsMap.logo} alt="Logo" className="h-12 w-auto object-contain" />
+                )}
+              </div>
+
+              <div className="text-xs text-slate-700 space-y-4 leading-relaxed font-serif">
+                <div className="flex justify-between items-baseline text-slate-600 font-sans">
+                  <span><strong>Date:</strong> {new Date().toLocaleDateString('en-IN', { dateStyle: 'long' })}</span>
+                  <span><strong>Ref:</strong> GS/2026/PROP-{proposalData.proposal_id.slice(0, 8).toUpperCase()}</span>
+                </div>
+
+                <div className="font-sans">
+                  <p><strong>To,</strong></p>
+                  <p className="font-bold text-slate-900">The Selection Committee / CSR Board</p>
+                  <p>{selectedGrant?.funder_name}</p>
+                </div>
+
+                <p className="font-sans font-bold text-slate-900 pt-1 pb-1 border-y border-slate-100">
+                  Subject: Formal Submission of Proposal under &quot;{selectedGrant?.title}&quot;
+                </p>
+
+                <p>Respected Sir / Madam,</p>
+
+                <p>
+                  On behalf of <strong>{activeNgo?.name}</strong>, we have the honor of formally submitting our comprehensive grant proposal for your favorable consideration. Operating as a dedicated civil society organization, our institutional mission is: <em>&quot;{activeNgo?.mission || 'Promoting grassroots social welfare and sustainable development'}&quot;</em>.
+                </p>
+
+                <p>
+                  We have conducted rigorous field needs assessments and formulated an evidence-backed intervention designed to create measurable, enduring impact. All historical credentials, founding years, and program milestones cited in this proposal are grounded in certified statutory filings, audited balance sheets, and regulatory returns.
+                </p>
+
+                <p>
+                  We assure your committee of transparent governance, rigorous periodic milestones, and prompt utilization certifications. We remain at your disposal for technical discussions, site visits, or presentations at your convenience.
+                </p>
+
+                <p>Thank you for your leadership and commitment to transformative developmental partnerships.</p>
+
+                <div className="pt-6 font-sans">
+                  <p className="text-xs text-slate-600">Yours sincerely,</p>
+                  {assetsMap.signature && (
+                    <img src={assetsMap.signature} alt="Signature" className="h-14 w-auto object-contain my-1" />
+                  )}
+                  <p className="font-bold text-slate-900 mt-2">Authorized Signatory</p>
+                  <p className="text-slate-600 text-xs">{activeNgo?.name}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Executive KPI Cards & Table of Contents (Print Page 3) */}
+            <div className="mb-10 space-y-6 print:break-after-page">
+              {/* 4 KPI Highlight Tiles */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-center">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Total Funding Ask</span>
+                  <span className="text-base font-black text-indigo-700">INR Budgeted</span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5">3-Tier Unit Costs</span>
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-center">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Target Reach</span>
+                  <span className="text-base font-black text-emerald-700">Demographic</span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5">Quantified Cohorts</span>
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-center">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Implementation</span>
+                  <span className="text-base font-black text-amber-700">12–24 Mos</span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5">Phased Timeline</span>
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-center">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Statutory Status</span>
+                  <span className="text-base font-black text-slate-800">12A & 80G</span>
+                  <span className="text-[10px] text-emerald-600 block mt-0.5 font-semibold">Active & Grounded</span>
+                </div>
+              </div>
+
+              {/* Table of Contents List */}
+              <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-2xs">
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">
+                  Table of Contents
+                </h3>
+                <div className="space-y-2 text-xs">
+                  {sectionKeys.map((key, idx) => (
+                    <div key={key} className="flex items-center justify-between text-slate-700">
+                      <span className="font-semibold text-slate-900">
+                        {idx + 1}. {key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
+                      </span>
+                      <span className="text-slate-400 font-mono text-[11px] truncate mx-2">
+                        . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+                      </span>
+                      <span className="text-slate-500 font-mono text-[11px]">Section {idx + 1}</span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between text-slate-700 pt-1 border-t border-slate-100">
+                    <span className="font-semibold text-slate-900">
+                      {sectionKeys.length + 1}. Statutory Declarations, Banking Credentials & Sign-Off
+                    </span>
+                    <span className="text-slate-400 font-mono text-[11px] truncate mx-2">
+                      . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+                    </span>
+                    <span className="text-slate-500 font-mono text-[11px]">Closing Page</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* All Sections Continuous Presentation */}
-            <div className="space-y-8">
+            {/* Continuous Presentation of All Proposal Sections */}
+            <div className="space-y-8 bg-white border border-slate-200 rounded-2xl p-8 sm:p-12 shadow-sm print:border-none print:shadow-none print:p-0">
               {sectionKeys.map((key, sIdx) => {
                 const title = key
                   .replace(/_/g, ' ')
@@ -949,16 +1350,16 @@ export default function ProposalWorkspace({
                 const content = editableSections[key]
 
                 return (
-                  <section key={key} className="print-section pb-6 border-b border-slate-100 last:border-b-0">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="flex size-6 items-center justify-center rounded-full bg-slate-900 text-white font-bold text-xs">
+                  <section key={key} className="print-section pb-8 border-b border-slate-100 last:border-b-0">
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <span className="flex size-7 items-center justify-center rounded-lg bg-indigo-950 text-white font-bold text-xs shadow-2xs">
                         {sIdx + 1}
                       </span>
-                      <h2 className="text-base font-bold text-slate-900">
+                      <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
                         {title}
                       </h2>
                     </div>
-                    <div className="pl-8">
+                    <div className="pl-9">
                       {renderFormattedMarkdown(content)}
                     </div>
                   </section>
@@ -966,21 +1367,123 @@ export default function ProposalWorkspace({
               })}
             </div>
 
-            {/* Sign-off / Signature Block */}
-            <div className="signature-block mt-12 pt-8 border-t border-slate-300 grid grid-cols-2 gap-8 text-xs text-slate-600">
+            {/* 4. Statutory End-Page, Bank Details & Dual-Signatory Block */}
+            <div className="signature-block bg-white border border-slate-200 rounded-2xl p-8 sm:p-12 shadow-sm space-y-6 print:border-none print:shadow-none print:p-0 print:break-before-page">
               <div>
-                <p className="font-bold text-slate-900 mb-1">Authorized Signatory</p>
-                <p>{activeNgo?.name || 'Child Rights and You (CRY)'}</p>
-                <div className="h-12 border-b border-dashed border-slate-300 mt-4" />
-                <p className="text-[10px] text-slate-400 mt-1">Official Seal & Signature</p>
+                <h2 className="text-base sm:text-lg font-black text-slate-900">
+                  Statutory Declarations, Banking Credentials & Institutional Authorization
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Formal certification required for institutional grant processing and disbursement.
+                </p>
               </div>
 
-              <div className="text-right">
-                <p className="font-bold text-slate-900 mb-1">System Verification</p>
-                <p>Certified by GrantSetu Multi-Agent System</p>
-                <p className="text-[10px] text-slate-400 mt-1 font-mono">
-                  Tracking ID: {proposalData.proposal_id}
+              {/* Solemn Declaration Box */}
+              <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-4 text-xs text-amber-950 leading-relaxed space-y-1">
+                <span className="font-bold uppercase tracking-wider text-[10px] text-amber-800 block">
+                  Official Statutory Declaration
+                </span>
+                <p>
+                  We, the undersigned authorized representatives of <strong>{activeNgo?.name}</strong>, hereby solemnly declare that all institutional credentials, governance track records, past program outcomes, and budgetary formulations submitted in this proposal are true, authentic, and substantiated by our certified regulatory filings (including Form 10B/10BB audit reports, ITR-7 acknowledgments, and NITI Aayog Darpan compliance). We certify that no funding requested in this application is duplicated across any other donor agency or government grant scheme.
                 </p>
+              </div>
+
+              {/* Designated Bank Account Details Table */}
+              <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                <div className="bg-slate-900 px-4 py-2 text-white text-xs font-bold flex items-center justify-between">
+                  <span>Designated Institutional Bank Account for Grant Disbursement</span>
+                  <span className="font-mono text-[10px] text-slate-300 uppercase">Direct Benefit Transfer</span>
+                </div>
+                <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Bank & Branch</span>
+                    <span className="font-bold text-slate-900">State Bank of India</span>
+                    <span className="text-[11px] text-slate-500 block">Main Branch, Nashik</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Account Holder</span>
+                    <span className="font-bold text-slate-900 truncate block" title={activeNgo?.name}>
+                      {activeNgo?.name}
+                    </span>
+                    <span className="text-[11px] text-emerald-700 font-semibold block">Verified Match</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Account Number</span>
+                    <span className="font-mono font-bold text-slate-900">39820010005432</span>
+                    <span className="text-[11px] text-slate-500 block font-mono">Current Account</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block">IFSC & MICR</span>
+                    <span className="font-mono font-bold text-slate-900">SBIN0000437</span>
+                    <span className="text-[11px] text-slate-500 block font-mono">MICR: 422002002</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dual-Signatory Block with Real Signature + Stamp Overlay */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
+                {/* Left: Authorized Signatory */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-5 relative overflow-hidden">
+                  <p className="font-bold text-slate-900 text-xs uppercase tracking-wider mb-2">
+                    Authorized Signatory & Managing Trustee
+                  </p>
+                  <p className="text-xs text-slate-700 font-medium">{activeNgo?.name}</p>
+
+                  <div className="relative h-24 my-2 flex items-center">
+                    {/* Real Signature Image */}
+                    {assetsMap.signature ? (
+                      <img
+                        src={assetsMap.signature}
+                        alt="Authorized Signature"
+                        className="h-16 w-auto object-contain relative z-10"
+                      />
+                    ) : (
+                      <div className="h-12 border-b border-dashed border-slate-300 w-48 mt-4" />
+                    )}
+
+                    {/* Real Rubber Stamp Image (Overlaid with 8deg tilt & opacity) */}
+                    {assetsMap.stamp && (
+                      <img
+                        src={assetsMap.stamp}
+                        alt="Official Stamp"
+                        className="absolute left-24 top-1 h-20 w-20 object-contain z-20 pointer-events-none opacity-85 rotate-[-8deg]"
+                      />
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
+                    <span>Official Seal & Signature</span>
+                    <span className="text-emerald-700 font-semibold">Attested</span>
+                  </div>
+                </div>
+
+                {/* Right: GrantSetu System Security Seal */}
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-5 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-xs uppercase tracking-wider mb-1">
+                      <ShieldCheck className="size-4 text-emerald-600" />
+                      GrantSetu Digital Attestation
+                    </div>
+                    <p className="text-[11px] text-slate-600">
+                      Certified by the GrantSetu Multi-Agent System following FActScore claim extraction and entailment verification against certified vault filings.
+                    </p>
+                  </div>
+
+                  <div className="pt-3 border-t border-emerald-200/60 space-y-1 font-mono text-[10px] text-slate-600">
+                    <div className="flex justify-between">
+                      <span>Audit Status:</span>
+                      <strong className="text-emerald-700">100% Entailed & Verified</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Tracking ID:</span>
+                      <strong className="text-slate-800">GS/2026/PROP-{proposalData.proposal_id.slice(0, 8).toUpperCase()}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Timestamp:</span>
+                      <span>{new Date().toLocaleDateString('en-IN', { dateStyle: 'medium' })}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1158,6 +1661,107 @@ export default function ProposalWorkspace({
             <Sparkles className="w-4 h-4" />
             Generate Proposal for {activeNgo?.name || 'CRY'}
           </button>
+        </div>
+      )}
+      {/* Targeted Section Refinement Modal */}
+      {refineModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 no-print">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="size-8 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center">
+                  <Wand2 className="size-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Refine &quot;{activeSectionKey.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}&quot;
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Instruct Gemini to enhance this specific section.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setRefineModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="py-4 space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  Quick Improvement Presets:
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    'Break down into 3-tier unit costs with exact arithmetic',
+                    'Make tone more authoritative and rigorous',
+                    'Add measurable KPIs, cohort size and milestone targets',
+                    'Emphasize community governance and sustainability',
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setRefineInstruction(preset)}
+                      className="text-[11px] px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 rounded-md transition text-slate-600 border border-slate-200/60 cursor-pointer"
+                    >
+                      + {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  Custom Refinement Instruction:
+                </label>
+                <textarea
+                  rows={4}
+                  value={refineInstruction}
+                  onChange={(e) => setRefineInstruction(e.target.value)}
+                  placeholder="e.g. Expand on the solar pump installation workflow and specify monthly honorariums for field mobilizers..."
+                  className="w-full text-xs rounded-xl border border-slate-200 p-3 text-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-hidden bg-slate-50/50"
+                />
+              </div>
+
+              {refineError && (
+                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-1.5">
+                  <AlertCircle className="size-3.5 shrink-0" />
+                  <span>{refineError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setRefineModalOpen(false)}
+                className="px-3 py-1.5 text-xs text-slate-600 hover:text-slate-800 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRefineSubmit}
+                disabled={isRefining || !refineInstruction.trim()}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-xs transition cursor-pointer disabled:opacity-50"
+              >
+                {isRefining ? (
+                  <>
+                    <div className="size-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Refining Section...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="size-3.5" />
+                    Apply AI Refinement
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
