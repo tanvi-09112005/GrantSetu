@@ -25,19 +25,21 @@ export default function GrantDiscoveryCard({
   onDraftProposal,
   onBatchDraft,
   onResultsLoaded,
+  cache,
+  onCacheChange,
 }) {
   const [query, setQuery] = useState('')
   const [topK, setTopK] = useState(8)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [results, setResults] = useState([])
-  const [queryUsed, setQueryUsed] = useState(null)
+  const [results, setResults] = useState(cache?.results ?? [])
+  const [queryUsed, setQueryUsed] = useState(cache?.queryUsed ?? null)
   const [filterType, setFilterType] = useState('all') // all, eligible, govt, csr, international
   const [selectedGrantIds, setSelectedGrantIds] = useState([])
 
   // Eligibility checking states
   const [checkingId, setCheckingId] = useState(null)
-  const [eligibilityResults, setEligibilityResults] = useState({})
+  const [eligibilityResults, setEligibilityResults] = useState(cache?.eligibility ?? {})
 
   const toggleSelectGrant = (grantId) => {
     setSelectedGrantIds((prev) =>
@@ -96,6 +98,11 @@ export default function GrantDiscoveryCard({
       handleDiscover()
     }
   }, [ngoId])
+
+  // Report state upward so the parent can restore it after navigation
+  useEffect(() => {
+    onCacheChange?.({ results, queryUsed, eligibility: eligibilityResults })
+  }, [results, queryUsed, eligibilityResults])
 
   const handleManualCheck = async (grantId) => {
     setCheckingId(grantId)
@@ -240,11 +247,10 @@ export default function GrantDiscoveryCard({
                   key={f.id}
                   type="button"
                   onClick={() => setFilterType(f.id)}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
-                    filterType === f.id
-                      ? 'bg-neutral-900 text-white'
-                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
-                  }`}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition cursor-pointer ${filterType === f.id
+                    ? 'bg-neutral-900 text-white'
+                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                    }`}
                 >
                   {f.label}
                 </button>
@@ -288,11 +294,10 @@ export default function GrantDiscoveryCard({
             return (
               <div
                 key={grant.id}
-                className={`rounded-xl border bg-white p-5 shadow-2xs transition ${
-                  isSelected
-                    ? 'border-indigo-500 ring-2 ring-indigo-500/10'
-                    : 'border-neutral-200 hover:border-indigo-300'
-                }`}
+                className={`rounded-xl border bg-white p-5 shadow-2xs transition ${isSelected
+                  ? 'border-indigo-500 ring-2 ring-indigo-500/10'
+                  : 'border-neutral-200 hover:border-indigo-300'
+                  }`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                   <div className="flex items-start gap-3 flex-1">
@@ -335,11 +340,10 @@ export default function GrantDiscoveryCard({
                     </div>
                     {verdict && (
                       <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold mt-1 ${
-                          verdict.eligible
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold mt-1 ${verdict.eligible
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-red-100 text-red-800'
+                          }`}
                       >
                         {verdict.eligible ? '✔ ELIGIBLE' : '✘ INELIGIBLE'}
                       </span>
@@ -361,11 +365,10 @@ export default function GrantDiscoveryCard({
                 {/* Statutory Eligibility Breakdown Accordion */}
                 {verdict && (
                   <div
-                    className={`mt-3 rounded-xl p-3.5 border text-xs ${
-                      verdict.eligible
-                        ? 'bg-emerald-50/60 border-emerald-200'
-                        : 'bg-amber-50/60 border-amber-200'
-                    }`}
+                    className={`mt-3 rounded-xl p-3.5 border text-xs ${verdict.eligible
+                      ? 'bg-emerald-50/60 border-emerald-200'
+                      : 'bg-amber-50/60 border-amber-200'
+                      }`}
                   >
                     <div className="flex items-center justify-between gap-2 font-semibold">
                       <span className={verdict.eligible ? 'text-emerald-900' : 'text-amber-950'}>
@@ -469,16 +472,18 @@ export default function GrantDiscoveryCard({
             )
           })}
         </div>
+      ) : loading ? (
+        <div
+          role="status"
+          className="flex items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-white p-12 text-sm text-neutral-500"
+        >
+          <Loader2 className="size-5 animate-spin text-indigo-600" />
+          Finding matching grants…
+        </div>
       ) : (
-        !loading && (
-          <div className="rounded-xl border border-dashed border-neutral-300 p-12 text-center">
-            <Compass className="size-8 mx-auto text-neutral-400 mb-2" />
-            <h4 className="text-sm font-semibold text-neutral-700">No Grants Match the Selected Filter</h4>
-            <p className="text-xs text-neutral-500 mt-1 max-w-sm mx-auto">
-              Try switching the filter to &quot;All Matches&quot; or click &quot;Discover Matching Grants&quot; above.
-            </p>
-          </div>
-        )
+        <div className="rounded-xl border border-dashed border-neutral-300 p-12 text-center">
+          ...unchanged contents...
+        </div>
       )}
 
       {/* Floating Bottom Batch Action Bar */}

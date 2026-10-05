@@ -17,7 +17,7 @@ dist/
 
 # Models / caches
 .cache/
-models/
+/models/
 .huggingface/
 
 # Data artifacts (keep the curated seed CSV, ignore generated dumps)

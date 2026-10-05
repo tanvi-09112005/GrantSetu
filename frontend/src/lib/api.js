@@ -92,3 +92,37 @@ export const verifyProposal = (proposalId) =>
   api.post(`/proposals/${proposalId}/verify`).then((r) => r.data)
 
 
+
+// NGO registration wizard (Task 1) — multipart: form fields + certificate PDFs.
+export const registerNgo = (formData) =>
+  api.post('/ngo/register', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data)
+  
+// Document Vault (Task 3)
+export const deleteDocument = (documentId) => api.delete(`/ngo/documents/${documentId}`)
+
+export const listAssets = (ngoId) =>
+  api.get('/ngo/assets', { params: { ngo_id: ngoId } }).then((r) => r.data)
+
+export const uploadAsset = (ngoId, assetType, file) => {
+  const formData = new FormData()
+  formData.append('ngo_id', ngoId)
+  formData.append('file', file)
+  return api.put(`/ngo/assets/${assetType}`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then((r) => r.data)
+}
+
+export const deleteAsset = (ngoId, assetType) =>
+  api.delete(`/ngo/assets/${assetType}`, { params: { ngo_id: ngoId } })
+
+
+// Re-verify an existing NGO's Darpan certificate (retry flow)
+export const verifyNgo = (ngoId, darpanFile) => {
+  const fd = new FormData()
+  fd.append('darpan_certificate', darpanFile)
+  return api
+    .post(`/ngo/${ngoId}/verify`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+    .then((r) => r.data)
+}

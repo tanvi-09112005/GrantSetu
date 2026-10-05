@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.api.deps import current_user, owned_ngo
 from app.db import pool
 from app.models.schemas import DiscoveredGrant, DiscoverResponse, GrantOut
+from app.services.verification_gate import ensure_verified
 
 router = APIRouter(prefix="/grants", tags=["grants"])
 
@@ -67,6 +68,9 @@ def discover(
                             break
                 except Exception:
                     pass
+
+    # Verification gate: only document-matched NGOs may run discovery.
+    ensure_verified(ngo)
 
     if not ngo:
         sector_list = [s.strip() for s in sectors.split(",")] if sectors else ["education", "health", "child_welfare", "social_welfare"]

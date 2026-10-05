@@ -90,7 +90,10 @@ def _extract_pdf(file_bytes: bytes) -> str:
 
     # 2. PyPDF2 — lighter, handles some PDFs pdfplumber can't.
     try:
-        from PyPDF2 import PdfReader
+        try:
+            from pypdf import PdfReader
+        except ImportError:
+            from PyPDF2 import PdfReader
 
         reader = PdfReader(io.BytesIO(file_bytes))
         for page in reader.pages:
@@ -115,7 +118,18 @@ def _extract_pdf(file_bytes: bytes) -> str:
                 if page_text:
                     text += page_text + "\n"
     except Exception as exc:
-        logger.warning("Tesseract OCR fallback failed: %s", exc)
+                logger.warning("Tesseract OCR fallback failed: %s", exc)
+
+    if text.strip():
+        return text
+
+    # 4. Gemini Vision: scanned/graphic PDFs when local OCR isn't installed.
+    try:
+        from app.services.vision import transcribe_pdf
+
+        text = transcribe_pdf(file_bytes)
+    except Exception as exc:
+        logger.warning("Gemini vision fallback failed: %s", exc)
 
     return text
 
