@@ -679,16 +679,30 @@ export default function ProposalWorkspace({
                 </span>
               ) : (
                 <span
-                  className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full border ${fabricationRate === 0
+                  className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-0.5 rounded-full border ${fabricationRate === 0
                     ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                     : fabricationRate <= 0.1
                       ? 'bg-blue-50 text-blue-800 border-blue-200'
                       : 'bg-rose-50 text-rose-800 border-rose-200'
                     }`}
                 >
-                  <ShieldCheck className="w-3 h-3" />
-                  {verificationResults.filter((r) => r.verdict === 'supported').length}/{verificationResults.length} Claims Verified
-                  {' '}({(fabricationRate * 100).toFixed(1)}% Unsupported)
+                  <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                  {(() => {
+                    const supported = verificationResults.filter((r) => r.verdict === 'supported').length
+                    const partial = verificationResults.filter((r) => r.verdict === 'partially_supported').length
+                    const unsupported = verificationResults.filter((r) => r.verdict === 'unsupported').length
+                    const validCount = supported + partial
+
+                    return (
+                      <span>
+                        {validCount}/{verificationResults.length} Grounded &amp; Valid
+                        <span className="font-normal opacity-90 text-[11px] ml-1">
+                          ({supported} Historical · {partial} Proposed Targets
+                          {unsupported > 0 ? ` · ${unsupported} Contradiction` : ''})
+                        </span>
+                      </span>
+                    )
+                  })()}
                 </span>
               )}
             </div>
@@ -992,12 +1006,30 @@ export default function ProposalWorkspace({
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <div className="text-center px-4 py-2 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                    <div className="text-center px-3 py-1.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                      <span className="text-[10px] text-slate-500 block uppercase font-bold">
+                        Historical Facts
+                      </span>
+                      <span className="text-base font-black text-emerald-600">
+                        {verificationResults.filter((r) => r.verdict === 'supported').length}
+                      </span>
+                    </div>
+
+                    <div className="text-center px-3 py-1.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                      <span className="text-[10px] text-slate-500 block uppercase font-bold">
+                        Proposed Targets
+                      </span>
+                      <span className="text-base font-black text-amber-600">
+                        {verificationResults.filter((r) => r.verdict === 'partially_supported').length}
+                      </span>
+                    </div>
+
+                    <div className="text-center px-3 py-1.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
                       <span className="text-[10px] text-slate-500 block uppercase font-bold">
                         Fabrication Rate
                       </span>
                       <span
-                        className={`text-xl font-black ${fabricationRate === 0 ? 'text-emerald-600' : 'text-amber-600'
+                        className={`text-base font-black ${fabricationRate === 0 ? 'text-emerald-600' : 'text-rose-600'
                           }`}
                       >
                         {(fabricationRate * 100).toFixed(1)}%
@@ -1081,7 +1113,7 @@ export default function ProposalWorkspace({
                                   : 'bg-rose-100 text-rose-800'
                                 }`}
                             >
-                              {item.verdict.replace('_', ' ')}
+                              {isSupported ? 'Historical Fact ✓' : isPartial ? 'Project Target' : 'Contradiction'}
                             </span>
                           </div>
                         </div>
