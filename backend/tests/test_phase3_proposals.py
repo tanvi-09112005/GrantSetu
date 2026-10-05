@@ -125,3 +125,45 @@ def test_verify_proposal_claims_endpoint():
         assert len(update_calls) == 1
         assert "status = 'verified'" in str(update_calls[0])
 
+
+def test_heuristic_claims_does_not_extract_fragmented_numbers_or_women():
+    from app.graph.nodes.extract_claims import _extract_heuristic_claims
+
+    sample_text = """
+    ## EXECUTIVE SUMMARY
+    Total Funding Ask: ₹35,00,000 (Thirty-Five Lakhs)
+    Targeting marginalized smallholder farmers, rural women, and youth.
+    Outreach serves 15,000 agrarian households across Maharashtra.
+    FCRA Status: Never Held (Domestic Only)
+    Darpan ID: MH/2020/0789123
+    """
+    claims = _extract_heuristic_claims(sample_text)
+    claim_texts = [c["claim_text"] for c in claims]
+
+    # Should not produce corrupted fragments
+    assert not any("₹2" in t for t in claim_texts)
+    assert not any(", women" in t for t in claim_texts)
+    # Should detect the legitimate budget ask and negative FCRA disclosure
+    assert any("₹35,00,000" in t for t in claim_texts)
+    assert any("never held an FCRA" in t for t in claim_texts)
+    assert any("MH/2020/0789123" in t for t in claim_texts)
+
+
+def test_fcra_negative_claim_is_supported_when_ngo_never_held_fcra():
+    from app.graph.nodes.verify import _check_deterministic_claim
+
+    ngo_profile = {
+        "name": "Samarpan Social Welfare Trust",
+        "darpan_id": "MH/2020/0789123",
+        "fcra_status": "never_held",
+    }
+    res = _check_deterministic_claim(
+        claim_text="The organization has never held an FCRA registration",
+        ngo_profile=ngo_profile,
+        all_chunk_text="",
+    )
+    assert res is not None
+    assert res["verdict"] == "supported"
+    assert "never_held" in res["evidence_span"]
+
+

@@ -127,20 +127,40 @@ def _check_deterministic_claim(claim_text: str, ngo_profile: dict, all_chunk_tex
     # 4. FCRA Status check
     if "fcra" in text_lower:
         fcra_status = str(ngo_profile.get("fcra_status") or "").lower()
-        if "active" in fcra_status:
-            return {
-                "claim_text": claim_text,
-                "verdict": "supported",
-                "evidence_span": "Active FCRA registration confirmed in MHA compliance registry",
-                "confidence": 0.95,
-            }
-        elif "inactive" in fcra_status or "suspended" in fcra_status:
-            return {
-                "claim_text": claim_text,
-                "verdict": "unsupported",
-                "evidence_span": f"Contradiction: Claim asserts FCRA certification, but official MHA record shows {fcra_status.upper()}",
-                "confidence": 1.0,
-            }
+        is_negative_claim = any(
+            neg in text_lower
+            for neg in ["never held", "no fcra", "not held", "not registered", "never_held", "domestic only", "strictly domestic"]
+        )
+        if is_negative_claim:
+            if "never_held" in fcra_status or "none" in fcra_status or not fcra_status or "inactive" in fcra_status:
+                return {
+                    "claim_text": claim_text,
+                    "verdict": "supported",
+                    "evidence_span": f"NGO Profile confirms FCRA status: {ngo_profile.get('fcra_status', 'never_held')}",
+                    "confidence": 1.0,
+                }
+            else:
+                return {
+                    "claim_text": claim_text,
+                    "verdict": "unsupported",
+                    "evidence_span": f"Contradiction: Claim asserts no FCRA registration, but official MHA record shows {fcra_status.upper()}",
+                    "confidence": 1.0,
+                }
+        else:
+            if "active" in fcra_status:
+                return {
+                    "claim_text": claim_text,
+                    "verdict": "supported",
+                    "evidence_span": "Active FCRA registration confirmed in MHA compliance registry",
+                    "confidence": 0.95,
+                }
+            else:
+                return {
+                    "claim_text": claim_text,
+                    "verdict": "unsupported",
+                    "evidence_span": f"Contradiction: Claim asserts FCRA registration, but official MHA record shows {fcra_status.upper() if fcra_status else 'NEVER HELD'}",
+                    "confidence": 1.0,
+                }
 
     return None
 
