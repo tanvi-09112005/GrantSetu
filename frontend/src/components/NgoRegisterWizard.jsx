@@ -247,11 +247,11 @@ export default function NgoRegisterWizard({ onComplete, onCancel }) {
         <ul className="mt-4 space-y-1.5 text-xs text-left inline-block">
           <li className="flex items-center gap-2 text-emerald-700"><CheckCircle2 className="size-4" /> Darpan ID format is valid</li>
           <li className="flex items-center gap-2 text-emerald-700"><CheckCircle2 className="size-4" /> Darpan certificate uploaded</li>
-          <li className={`flex items-center gap-2 ${result.darpan_id_found_in_certificate ? 'text-emerald-700' : 'text-amber-600'}`}>
-            {result.darpan_id_found_in_certificate ? <CheckCircle2 className="size-4" /> : <AlertCircle className="size-4" />}
-            {result.darpan_id_found_in_certificate
-              ? 'Darpan ID found inside the uploaded certificate'
-              : 'Darpan ID could not be read from the PDF (may be a scan) — flagged for manual review'}
+                    <li className="flex items-center gap-2 text-emerald-700">
+            <CheckCircle2 className="size-4" />
+            {result.verification_method === 'vision'
+              ? 'Darpan ID and NGO name read from your scanned certificate and matched'
+              : 'Darpan ID and NGO name matched with the uploaded certificate'}
           </li>
         </ul>
         <p className="mt-4 text-[11px] text-neutral-500">

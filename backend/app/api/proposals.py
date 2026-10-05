@@ -1,5 +1,4 @@
 """Proposal generation, revision and export routes (Phase 3 & 4)."""
-
 from __future__ import annotations
 
 import json
@@ -21,6 +20,7 @@ from app.models.schemas import (
     ProposalResponse,
     ReviseRequest,
 )
+from app.services.verification_gate import ensure_verified
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +122,9 @@ def generate(
 ) -> ProposalResponse:
     """Generate a multi-section grant proposal grounded in NGO document chunks and funder guidelines."""
     resolved_ngo_id, ngo_profile = _resolve_ngo_profile(payload.ngo_id)
+
+    # Verification gate: only document-matched NGOs may draft proposals.
+    ensure_verified(ngo_profile)
 
     # Optional ownership assert if user is logged in and not demo
     if user and isinstance(user, dict) and "id" in user:
@@ -278,6 +281,12 @@ def batch_generate(
 ) -> list[ProposalResponse]:
     """Generate proposals for multiple selected grants with rate-limiting to protect free-tier quotas."""
     import time
+
+    # Verification gate, checked ONCE up front. The loop below catches every
+    # exception per grant, so a 403 raised inside generate() would be swallowed
+    # and the caller would just get an empty list.
+    _, batch_profile = _resolve_ngo_profile(payload.ngo_id)
+    ensure_verified(batch_profile)
 
     results: list[ProposalResponse] = []
     for idx, grant_id in enumerate(payload.grant_ids):

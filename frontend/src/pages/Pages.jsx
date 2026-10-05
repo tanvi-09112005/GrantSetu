@@ -2,7 +2,8 @@ import React, { lazy } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { PipelineNav } from '../components/PipelineStepper'
-import { GateCard, gatePrimary } from '../components/RouteGuards'
+import { GateCard, gatePrimary, isVerified } from '../components/RouteGuards'
+import VerificationPanel from '../components/VerificationPanel'
 
 const NgoRegisterWizard = lazy(() => import('../components/NgoRegisterWizard'))
 const DocumentVault = lazy(() => import('../components/DocumentVault'))
@@ -28,11 +29,14 @@ export function VaultPage() {
     const { activeProfile, setDocCount } = useApp()
     return (
         <>
+            {activeProfile && !isVerified(activeProfile) && (
+                <div className="mb-6"><VerificationPanel profile={activeProfile} /></div>
+            )}
             <DocumentVault
-    key={activeProfile?.id}
-    ngoId={activeProfile?.id}
-    onDocumentCountChange={(c) => setDocCount(c)}
-/>
+                key={activeProfile?.id}
+                ngoId={activeProfile?.id}
+                onDocumentCountChange={(c) => setDocCount(c)}
+            />
             <PipelineNav />
         </>
     )
@@ -114,11 +118,16 @@ export function WorkspacePage({ stage }) {
 export function ProfilePage() {
     const { activeProfile, handleProfileSaved } = useApp()
     return (
-        <NGOProfileCard
-            key={activeProfile?.id}
-            currentProfile={activeProfile}
-            onProfileSaved={handleProfileSaved}
-        />
+        <>
+            {activeProfile && !isVerified(activeProfile) && (
+                <div className="mb-6"><VerificationPanel profile={activeProfile} /></div>
+            )}
+            <NGOProfileCard
+                key={activeProfile?.id}
+                currentProfile={activeProfile}
+                onProfileSaved={handleProfileSaved}
+            />
+        </>
     )
 }
 

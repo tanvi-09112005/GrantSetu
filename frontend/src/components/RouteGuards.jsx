@@ -2,6 +2,7 @@ import React from 'react'
 import { Link, Outlet } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import VerificationPanel from './VerificationPanel'
 
 export function PageSpinner({ label = 'Loading…' }) {
     return (
@@ -66,4 +67,34 @@ export function RequireOrg() {
         )
     }
     return <Outlet />
+}
+
+// An NGO counts as verified once its Darpan certificate has been matched.
+// Profiles with an explicit `user_id: null` are the shared pre-verified samples.
+export const VERIFIED_STATUSES = ['document_matched', 'verified']
+export function isVerified(profile) {
+    if (!profile) return false
+    if (profile.user_id === null) return true
+    return VERIFIED_STATUSES.includes(profile.verification_status)
+}
+
+// Needs a document-matched NGO. Use INSIDE <RequireOrg/> for /grants, /workspace, /export.
+// /vault and /profile stay outside it so an unverified NGO can still upload its proof.
+export function RequireVerified() {
+    const { activeProfile, profilesLoaded } = useApp()
+    if (!profilesLoaded) return <PageSpinner label="Checking verification…" />
+    if (!activeProfile || isVerified(activeProfile)) return <Outlet />
+    return (
+        <div className="space-y-4 max-w-2xl mx-auto">
+            <GateCard
+                title="Verify your NGO to continue"
+                body="Grant matching and proposal drafting unlock once your Darpan certificate has been matched to your Darpan ID."
+            >
+                <Link to="/vault" className={gateSecondary}>
+                    Back to the Vault
+                </Link>
+            </GateCard>
+            <VerificationPanel profile={activeProfile} />
+        </div>
+    )
 }

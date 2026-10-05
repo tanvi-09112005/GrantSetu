@@ -116,3 +116,13 @@ export const uploadAsset = (ngoId, assetType, file) => {
 
 export const deleteAsset = (ngoId, assetType) =>
   api.delete(`/ngo/assets/${assetType}`, { params: { ngo_id: ngoId } })
+
+
+// Re-verify an existing NGO's Darpan certificate (retry flow)
+export const verifyNgo = (ngoId, darpanFile) => {
+  const fd = new FormData()
+  fd.append('darpan_certificate', darpanFile)
+  return api
+    .post(`/ngo/${ngoId}/verify`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+    .then((r) => r.data)
+}

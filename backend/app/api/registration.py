@@ -4,6 +4,14 @@ The React wizard first creates the Supabase Auth user (email + password), then
 calls ``POST /ngo/register`` with the session JWT, the form fields and the
 certificate PDFs. Validation is repeated here on purpose: the browser check is
 for convenience, this one is the authoritative one.
+
+Verification (fixed):
+  * the Darpan certificate is READ and checked BEFORE anything is written -
+    a wrong / blank / mismatching certificate is rejected with a 422 and no
+    profile or document rows are created;
+  * scanned or graphic certificates are read with Gemini Vision;
+  * if anything fails after the profile row exists, it is rolled back;
+  * ``POST /ngo/{ngo_id}/verify`` lets an unverified NGO re-upload its proof.
 """
 
 from __future__ import annotations
@@ -16,6 +24,8 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 
 from app.api.deps import current_user
 from app.db import pool
+from app.services.darpan_verify import verify_darpan_certificate
+from app.services.verification_gate import VERIFIED_STATUSES
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ngo", tags=["ngo-registration"])
@@ -62,6 +72,20 @@ def _store_document(ngo_id: str, doc_type: str, filename: str, data: bytes) -> d
     )
 
 
+def _rollback_ngo(ngo_id: str) -> None:
+    """Best-effort removal of a half-created NGO (children first)."""
+    for sql in (
+        "delete from document_chunks where ngo_id = %s",
+        "delete from ngo_documents where ngo_id = %s",
+        "delete from ngo_assets where ngo_id = %s",
+        "delete from ngo_profiles where id = %s",
+    ):
+        try:
+            pool.execute(sql, (ngo_id,))
+        except Exception:  # noqa: BLE001
+            logger.exception("rollback step failed: %s", sql)
+
+
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register_ngo(
     # Step 1 - admin & identity (email/password live in Supabase Auth, not here)
@@ -106,6 +130,12 @@ def register_ngo(
     bytes_12a = _read_pdf(cert_12a, "12A certificate") if cert_12a and cert_12a.filename else None
     bytes_80g = _read_pdf(cert_80g, "80G certificate") if cert_80g and cert_80g.filename else None
 
+    # ---- verify BEFORE writing anything -------------------------------------
+    check = verify_darpan_certificate(darpan_bytes, darpan, _clean(ngo_name))
+    if not check.ok:
+        logger.info("registration rejected for %s: %s", user.get("email"), check.reason)
+        raise HTTPException(status_code=422, detail=check.message)
+
     # ---- create the profile -------------------------------------------------
     # The existing eligibility engine reads reg_12a / reg_80g / reg_fcra (a
     # number when held, NULL when not) and fcra_status, so we fill those too.
@@ -138,25 +168,69 @@ def register_ngo(
     )
     ngo_id = str(ngo["id"])
 
-    # ---- store proofs + a real (cheap) content check ------------------------
-    darpan_doc = _store_document(ngo_id, "darpan_certificate", darpan_certificate.filename, darpan_bytes)
-    if bytes_12a:
-        _store_document(ngo_id, "cert_12a", cert_12a.filename, bytes_12a)
-    if bytes_80g:
-        _store_document(ngo_id, "cert_80g", cert_80g.filename, bytes_80g)
+    # ---- store proofs; any failure rolls the whole NGO back -----------------
+    try:
+        _store_document(ngo_id, "darpan_certificate", darpan_certificate.filename, darpan_bytes)
+        if bytes_12a:
+            _store_document(ngo_id, "cert_12a", cert_12a.filename, bytes_12a)
+        if bytes_80g:
+            _store_document(ngo_id, "cert_80g", cert_80g.filename, bytes_80g)
+        pool.execute(
+            "update ngo_profiles set verification_status = 'document_matched', "
+            "verified_at = now() where id = %s",
+            (ngo_id,),
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("registration failed after profile insert; rolling back %s", ngo_id)
+        _rollback_ngo(ngo_id)
+        raise HTTPException(
+            status_code=500,
+            detail="Registration could not be completed and nothing was saved. Please try again.",
+        )
 
-    # Does the uploaded PDF actually mention the ID the user typed?
-    text = (darpan_doc.get("raw_text") or "").upper().replace(" ", "")
-    id_found_in_pdf = darpan.replace(" ", "") in text
+    return {
+        "ngo_id": ngo_id,
+        "verification_status": "document_matched",
+        "darpan_id": darpan,
+        "darpan_id_found_in_certificate": True,
+        "verification_method": check.method,  # text | vision
+        "certificate_name": check.found_name,
+    }
 
-    new_status = "document_matched" if id_found_in_pdf else "format_verified"
+
+@router.post("/{ngo_id}/verify")
+def reverify_ngo(
+    ngo_id: str,
+    darpan_certificate: UploadFile = File(...),
+    user: dict = Depends(current_user),
+) -> dict:
+    """Retry verification for an NGO that is not (or no longer) document-matched.
+
+    Uses the Darpan ID and name the NGO registered with, so the ID can't be swapped.
+    """
+    ngo = pool.fetch_one(
+        "select id, user_id, name, darpan_id, verification_status "
+        "from ngo_profiles where id = %s and user_id = %s",
+        (ngo_id, user["id"]),
+    )
+    if not ngo:
+        raise HTTPException(status_code=404, detail="NGO not found")
+    if ngo["verification_status"] in VERIFIED_STATUSES:
+        return {"ngo_id": ngo_id, "verification_status": ngo["verification_status"], "already_verified": True}
+
+    data = _read_pdf(darpan_certificate, "Darpan certificate")
+    check = verify_darpan_certificate(data, ngo["darpan_id"], ngo["name"])
+    if not check.ok:
+        raise HTTPException(status_code=422, detail=check.message)
+
+    _store_document(ngo_id, "darpan_certificate", darpan_certificate.filename, data)
     pool.execute(
-        "update ngo_profiles set verification_status = %s, verified_at = now() where id = %s",
-        (new_status, ngo_id),
+        "update ngo_profiles set verification_status = 'document_matched', "
+        "verified_at = now() where id = %s",
+        (ngo_id,),
     )
     return {
         "ngo_id": ngo_id,
-        "verification_status": new_status,
-        "darpan_id": darpan,
-        "darpan_id_found_in_certificate": id_found_in_pdf,
+        "verification_status": "document_matched",
+        "verification_method": check.method,
     }
