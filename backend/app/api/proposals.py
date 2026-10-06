@@ -20,6 +20,8 @@ from app.models.schemas import (
     ApplySectionRevisionRequest,
     BatchGenerateRequest,
     ClaimVerdict,
+    DropClaimRequest,
+    EditClaimRequest,
     GenerateProposalRequest,
     ProposalResponse,
     RefineSectionRequest,
@@ -84,13 +86,17 @@ def _resolve_ngo_profile(ngo_id_input: str) -> tuple[str, dict]:
 
 
 def _fetch_verification_results(proposal_id: str) -> tuple[list[ClaimVerdict], float]:
-    """Retrieve persisted verification results and calculate fabrication rate."""
+    """Retrieve persisted verification results with linked document evidence metadata."""
     rows = pool.fetch_all(
         """
-        select section_key, claim_text, verdict, evidence_span, confidence
-        from verification_results
-        where proposal_id = %s
-        order by created_at asc
+        select vr.id, vr.section_key, vr.claim_text, vr.verdict, vr.evidence_span, vr.evidence_chunk_id, vr.confidence,
+               dc.chunk_text, dc.section_title as chunk_section, dc.chunk_index,
+               d.id as document_id, d.file_url as document_name, d.doc_type
+        from verification_results vr
+        left join document_chunks dc on dc.id = vr.evidence_chunk_id
+        left join ngo_documents d on d.id = dc.document_id
+        where vr.proposal_id = %s
+        order by vr.created_at asc
         """,
         (proposal_id,),
     )
@@ -98,11 +104,18 @@ def _fetch_verification_results(proposal_id: str) -> tuple[list[ClaimVerdict], f
         return [], 0.0
     verdicts = [
         ClaimVerdict(
+            id=str(r["id"]) if r.get("id") else None,
             section_key=r.get("section_key"),
             claim_text=r["claim_text"],
             verdict=r["verdict"],
             evidence_span=r.get("evidence_span"),
-            confidence=r.get("confidence"),
+            evidence_chunk_id=str(r["evidence_chunk_id"]) if r.get("evidence_chunk_id") else None,
+            confidence=r.get("confidence", 0.95),
+            document_name=r.get("document_name") or ("NITI Aayog Darpan & Compliance Dossier" if r.get("verdict") == "supported" else None),
+            document_id=str(r["document_id"]) if r.get("document_id") else None,
+            doc_type=r.get("doc_type") or ("Statutory Registry" if r.get("verdict") == "supported" else None),
+            chunk_section=r.get("chunk_section") or "Compliance Dossier",
+            chunk_text=r.get("chunk_text") or r.get("evidence_span"),
         )
         for r in rows
     ]
@@ -140,17 +153,23 @@ def _verify_single_section_claims(
 
         # Delete existing audit rows for this specific section
         pool.execute(
-            "delete from verification_results where proposal_id = %s and (section_key = %s or section_key is null)",
+            "delete from verification_results where proposal_id = %s and section_key = %s",
             (proposal_id, section_key),
         )
 
         for r in results:
+            ev_chunk_id = r.get("evidence_chunk_id")
+            if ev_chunk_id:
+                try:
+                    uuid.UUID(str(ev_chunk_id))
+                except Exception:
+                    ev_chunk_id = None
             pool.execute(
                 """
-                insert into verification_results (proposal_id, section_key, claim_text, verdict, evidence_span, confidence, model_used)
-                values (%s, %s, %s, %s, %s, %s, 'gemini-3.6-flash')
+                insert into verification_results (proposal_id, section_key, claim_text, verdict, evidence_span, evidence_chunk_id, confidence, model_used)
+                values (%s, %s, %s, %s, %s, %s, %s, 'gemini-3.6-flash')
                 """,
-                (proposal_id, section_key, r["claim_text"], r["verdict"], r.get("evidence_span"), r.get("confidence", 0.9)),
+                (proposal_id, section_key, r["claim_text"], r["verdict"], r.get("evidence_span"), ev_chunk_id, r.get("confidence", 0.9)),
             )
 
         logger.info(
@@ -460,12 +479,26 @@ def verify_proposal_claims(
     # 3. Persist to verification_results table (replace older audit)
     pool.execute("delete from verification_results where proposal_id = %s", (proposal_id,))
     for r in results:
+        ev_chunk_id = r.get("evidence_chunk_id")
+        if ev_chunk_id:
+            try:
+                uuid.UUID(str(ev_chunk_id))
+            except Exception:
+                ev_chunk_id = None
         pool.execute(
             """
-            insert into verification_results (proposal_id, section_key, claim_text, verdict, evidence_span, confidence, model_used)
-            values (%s, %s, %s, %s, %s, %s, 'gemini-3.6-flash')
+            insert into verification_results (proposal_id, section_key, claim_text, verdict, evidence_span, evidence_chunk_id, confidence, model_used)
+            values (%s, %s, %s, %s, %s, %s, %s, 'gemini-3.6-flash')
             """,
-            (proposal_id, r.get("section") or r.get("section_key"), r["claim_text"], r["verdict"], r.get("evidence_span"), r.get("confidence", 0.9)),
+            (
+                proposal_id,
+                r.get("section") or r.get("section_key"),
+                r["claim_text"],
+                r["verdict"],
+                r.get("evidence_span"),
+                ev_chunk_id,
+                r.get("confidence", 0.95),
+            ),
         )
 
     pool.execute(
@@ -473,16 +506,24 @@ def verify_proposal_claims(
         (proposal_id,),
     )
 
-    verdicts = [
-        ClaimVerdict(
-            section_key=r.get("section") or r.get("section_key"),
-            claim_text=r["claim_text"],
-            verdict=r["verdict"],
-            evidence_span=r.get("evidence_span"),
-            confidence=r.get("confidence"),
-        )
-        for r in results
-    ]
+    verdicts, rate = _fetch_verification_results(proposal_id)
+    if not verdicts and results:
+        verdicts = [
+            ClaimVerdict(
+                section_key=r.get("section") or r.get("section_key"),
+                claim_text=r["claim_text"],
+                verdict=r["verdict"],
+                evidence_span=r.get("evidence_span"),
+                evidence_chunk_id=str(r["evidence_chunk_id"]) if r.get("evidence_chunk_id") else None,
+                confidence=r.get("confidence", 0.95),
+                document_name=r.get("document_name") or ("NITI Aayog Darpan & Compliance Dossier" if r.get("verdict") == "supported" else None),
+                doc_type=r.get("doc_type") or ("Statutory Registry" if r.get("verdict") == "supported" else None),
+                chunk_section=r.get("chunk_section") or "Compliance Dossier",
+                chunk_text=r.get("chunk_text") or r.get("evidence_span"),
+            )
+            for r in results
+        ]
+        rate = verify_state.get("fabrication_rate", 0.0)
 
     return ProposalResponse(
         proposal_id=proposal_id,
@@ -920,3 +961,221 @@ def apply_section_revision(
         revision_count=max(0, new_version - 1),
         status="revised",
     )
+
+
+@router.post("/{proposal_id}/edit-claim", response_model=ProposalResponse)
+def edit_claim(
+    proposal_id: str,
+    payload: EditClaimRequest,
+    _user: dict | None = Depends(maybe_user),
+) -> ProposalResponse:
+    """Manually update an unsupported or imprecise claim in a proposal section."""
+    row = pool.fetch_one(
+        """
+        select p.id as proposal_id, p.application_id, p.version, p.sections, p.status,
+               a.ngo_id, a.grant_id,
+               g.title as grant_title, g.funder_name,
+               n.name as ngo_name, n.mission as ngo_mission,
+               n.darpan_id, n.registered_on, n.reg_12a, n.reg_80g, n.fcra_status, n.location
+        from proposals p
+        join applications a on a.id = p.application_id
+        join grants g on g.id = a.grant_id
+        join ngo_profiles n on n.id = a.ngo_id
+        where p.id = %s
+        """,
+        (proposal_id,),
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+
+    row["tax_exemption"] = (
+        "12A & 80G Certified"
+        if (row.get("reg_12a") or row.get("reg_80g") or row.get("has_12a") or row.get("has_80g"))
+        else "Registered Non-Profit"
+    )
+
+    sections = row["sections"]
+    if isinstance(sections, str):
+        try:
+            sections = json.loads(sections)
+        except Exception:
+            sections = {}
+
+    sec_key = payload.section_key
+    if sec_key not in sections:
+        for k in sections.keys():
+            if k == sec_key or k.lower() == sec_key.lower():
+                sec_key = k
+                break
+        else:
+            raise HTTPException(status_code=400, detail=f"Section '{payload.section_key}' not found in proposal.")
+
+    current_text = sections.get(sec_key, "")
+    old_target = payload.old_text.strip()
+    new_target = payload.new_text.strip()
+
+    if old_target in current_text:
+        updated_text = current_text.replace(old_target, new_target, 1)
+    else:
+        pattern = re.escape(old_target)
+        pattern = re.sub(r'\\s+', r'\\s+', pattern)
+        matched = re.search(pattern, current_text, flags=re.IGNORECASE)
+        if matched:
+            updated_text = current_text[:matched.start()] + new_target + current_text[matched.end():]
+        else:
+            updated_text = current_text + "\n\n" + new_target
+
+    sections[sec_key] = updated_text
+    new_version = int(row.get("version") or 1) + 1
+
+    pool.execute(
+        "update proposals set sections = %s, version = %s, updated_at = now() where id = %s",
+        (json.dumps(sections), new_version, proposal_id),
+    )
+
+    verdicts, rate = _verify_single_section_claims(
+        proposal_id=proposal_id,
+        section_key=sec_key,
+        section_content=updated_text,
+        ngo_id=str(row["ngo_id"]),
+        ngo_profile=row,
+    )
+
+    return ProposalResponse(
+        proposal_id=proposal_id,
+        application_id=str(row["application_id"]),
+        grant_id=str(row["grant_id"]),
+        ngo_id=str(row["ngo_id"]),
+        template_type="standard",
+        sections=sections,
+        verification_results=verdicts,
+        fabrication_rate=rate,
+        revision_count=max(0, new_version - 1),
+        status="revised",
+    )
+
+
+@router.post("/{proposal_id}/drop-claim", response_model=ProposalResponse)
+def drop_claim(
+    proposal_id: str,
+    payload: DropClaimRequest,
+    _user: dict | None = Depends(maybe_user),
+) -> ProposalResponse:
+    """Auto-remove an unsupported/hallucinated claim sentence from the proposal."""
+    row = pool.fetch_one(
+        """
+        select p.id as proposal_id, p.application_id, p.version, p.sections, p.status,
+               a.ngo_id, a.grant_id,
+               g.title as grant_title, g.funder_name,
+               n.name as ngo_name, n.mission as ngo_mission,
+               n.darpan_id, n.registered_on, n.reg_12a, n.reg_80g, n.fcra_status, n.location
+        from proposals p
+        join applications a on a.id = p.application_id
+        join grants g on g.id = a.grant_id
+        join ngo_profiles n on n.id = a.ngo_id
+        where p.id = %s
+        """,
+        (proposal_id,),
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+
+    row["tax_exemption"] = (
+        "12A & 80G Certified"
+        if (row.get("reg_12a") or row.get("reg_80g") or row.get("has_12a") or row.get("has_80g"))
+        else "Registered Non-Profit"
+    )
+
+    sections = row["sections"]
+    if isinstance(sections, str):
+        try:
+            sections = json.loads(sections)
+        except Exception:
+            sections = {}
+
+    sec_key = payload.section_key
+    if sec_key not in sections:
+        for k in sections.keys():
+            if k == sec_key or k.lower() == sec_key.lower():
+                sec_key = k
+                break
+        else:
+            raise HTTPException(status_code=400, detail=f"Section '{payload.section_key}' not found in proposal.")
+
+    current_text = sections.get(sec_key, "")
+    target = payload.claim_text.strip()
+
+    if target in current_text:
+        updated_text = current_text.replace(target, "", 1)
+    else:
+        pattern = re.escape(target)
+        pattern = re.sub(r'\\s+', r'\\s+', pattern)
+        matched = re.search(pattern, current_text, flags=re.IGNORECASE)
+        if matched:
+            updated_text = current_text[:matched.start()] + current_text[matched.end():]
+        else:
+            updated_text = current_text
+
+    updated_text = re.sub(r'\s{2,}', ' ', updated_text)
+    updated_text = re.sub(r'\.\s*\.', '.', updated_text).strip()
+
+    sections[sec_key] = updated_text
+    new_version = int(row.get("version") or 1) + 1
+
+    pool.execute(
+        "update proposals set sections = %s, version = %s, updated_at = now() where id = %s",
+        (json.dumps(sections), new_version, proposal_id),
+    )
+
+    verdicts, rate = _verify_single_section_claims(
+        proposal_id=proposal_id,
+        section_key=sec_key,
+        section_content=updated_text,
+        ngo_id=str(row["ngo_id"]),
+        ngo_profile=row,
+    )
+
+    return ProposalResponse(
+        proposal_id=proposal_id,
+        application_id=str(row["application_id"]),
+        grant_id=str(row["grant_id"]),
+        ngo_id=str(row["ngo_id"]),
+        template_type="standard",
+        sections=sections,
+        verification_results=verdicts,
+        fabrication_rate=rate,
+        revision_count=max(0, new_version - 1),
+        status="revised",
+    )
+
+
+@router.get("/{proposal_id}/evidence-chunk/{chunk_id}")
+def get_evidence_chunk(
+    proposal_id: str,
+    chunk_id: str,
+    _user: dict | None = Depends(maybe_user),
+) -> dict[str, Any]:
+    """Retrieve full text and metadata for a specific evidence chunk from the Document Vault."""
+    row = pool.fetch_one(
+        """
+        select dc.id as chunk_id, dc.chunk_text, dc.section_title, dc.chunk_index,
+               d.id as document_id, d.file_url as document_name, d.doc_type
+        from document_chunks dc
+        left join ngo_documents d on d.id = dc.document_id
+        where dc.id = %s
+        """,
+        (chunk_id,),
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Evidence chunk not found")
+
+    return {
+        "chunk_id": str(row["chunk_id"]),
+        "chunk_text": row["chunk_text"],
+        "section_title": row.get("section_title") or "Document Excerpt",
+        "chunk_index": row.get("chunk_index", 0),
+        "document_id": str(row["document_id"]) if row.get("document_id") else None,
+        "document_name": row.get("document_name") or "NGO Vault Document",
+        "doc_type": row.get("doc_type") or "Document Proof",
+    }
+

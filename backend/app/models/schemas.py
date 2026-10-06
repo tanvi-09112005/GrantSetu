@@ -173,11 +173,18 @@ class BatchGenerateRequest(BaseModel):
 
 
 class ClaimVerdict(BaseModel):
+    id: str | None = None
     section_key: str | None = None
     claim_text: str
     verdict: Literal["supported", "unsupported", "partially_supported"]
     evidence_span: str | None = None
+    evidence_chunk_id: str | None = None
     confidence: float | None = None
+    document_name: str | None = None
+    document_id: str | None = None
+    doc_type: str | None = None
+    chunk_section: str | None = None
+    chunk_text: str | None = None
 
 
 class ProposalResponse(BaseModel):
@@ -228,6 +235,21 @@ class ApplySectionRevisionRequest(BaseModel):
     section_key: str
     refined_text: str
     rerun_verification: bool = True
+
+
+class EditClaimRequest(BaseModel):
+    """Manually update an unsupported claim sentence in the proposal."""
+
+    section_key: str
+    old_text: str
+    new_text: str
+
+
+class DropClaimRequest(BaseModel):
+    """Remove a hallucinated/unsupported claim sentence from the proposal."""
+
+    section_key: str
+    claim_text: str
 
 
 # --- Applications ------------------------------------------------------------

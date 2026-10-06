@@ -30,6 +30,10 @@ import {
   Landmark,
   X,
   FileSignature,
+  Trash2,
+  Paperclip,
+  CheckCheck,
+  ExternalLink,
 } from 'lucide-react'
 import {
   generateProposal,
@@ -39,8 +43,12 @@ import {
   listAssets,
   exportProposalPdf,
   exportProposalDocx,
+  editClaim,
+  dropClaim,
 } from '../lib/api'
 import SectionInlineRevision from './SectionInlineRevision'
+import BudgetSanityCards from './BudgetSanityCards'
+import EvidenceViewerDrawer from './EvidenceViewerDrawer'
 
 export default function ProposalWorkspace({
   activeNgo,
@@ -86,6 +94,15 @@ export default function ProposalWorkspace({
   const [refineInstruction, setRefineInstruction] = useState('')
   const [isRefining, setIsRefining] = useState(false)
   const [refineError, setRefineError] = useState(null)
+
+  // Explainable Evidence & Claim Action states
+  const [selectedEvidenceClaim, setSelectedEvidenceClaim] = useState(null)
+  const [editingClaim, setEditingClaim] = useState(null)
+  const [editClaimText, setEditClaimText] = useState('')
+  const [isEditingClaimSubmitting, setIsEditingClaimSubmitting] = useState(false)
+  const [droppingClaim, setDroppingClaim] = useState(null)
+  const [isDroppingClaimSubmitting, setIsDroppingClaimSubmitting] = useState(false)
+  const [actionSuccessMessage, setActionSuccessMessage] = useState(null)
 
   // Load institutional branding assets from vault (logo, stamp, signature)
   useEffect(() => {
@@ -351,6 +368,68 @@ export default function ProposalWorkspace({
     } else if (key && newContent !== undefined) {
       setEditableSections((prev) => ({ ...prev, [key]: newContent }))
     }
+  }
+
+  const handleEditClaimOpen = (item) => {
+    setEditingClaim(item)
+    setEditClaimText(item.claim_text)
+  }
+
+  const handleEditClaimSave = async () => {
+    if (!proposalData?.proposal_id || !editingClaim || !editClaimText.trim()) return
+    setIsEditingClaimSubmitting(true)
+    setError(null)
+    try {
+      const res = await editClaim(
+        proposalData.proposal_id,
+        editingClaim.section_key || activeSectionKey,
+        editingClaim.claim_text,
+        editClaimText.trim()
+      )
+      setProposalData(res)
+      setEditableSections(res.sections || {})
+      setVerificationResults(res.verification_results || [])
+      setFabricationRate(res.fabrication_rate || 0.0)
+      setBatchProposals((prev) => ({ ...prev, [selectedGrantId]: res }))
+      setEditingClaim(null)
+      setActionSuccessMessage('Claim successfully modified and re-verified!')
+      setTimeout(() => setActionSuccessMessage(null), 3500)
+    } catch (err) {
+      console.error('Failed to edit claim:', err)
+      setError(err.response?.data?.detail || 'Failed to update claim statement.')
+    } finally {
+      setIsEditingClaimSubmitting(false)
+    }
+  }
+
+  const handleDropClaimConfirm = async () => {
+    if (!proposalData?.proposal_id || !droppingClaim) return
+    setIsDroppingClaimSubmitting(true)
+    setError(null)
+    try {
+      const res = await dropClaim(
+        proposalData.proposal_id,
+        droppingClaim.section_key || activeSectionKey,
+        droppingClaim.claim_text
+      )
+      setProposalData(res)
+      setEditableSections(res.sections || {})
+      setVerificationResults(res.verification_results || [])
+      setFabricationRate(res.fabrication_rate || 0.0)
+      setBatchProposals((prev) => ({ ...prev, [selectedGrantId]: res }))
+      setDroppingClaim(null)
+      setActionSuccessMessage('Uncorroborated claim removed from proposal!')
+      setTimeout(() => setActionSuccessMessage(null), 3500)
+    } catch (err) {
+      console.error('Failed to drop claim:', err)
+      setError(err.response?.data?.detail || 'Failed to remove claim from proposal.')
+    } finally {
+      setIsDroppingClaimSubmitting(false)
+    }
+  }
+
+  const handleAttachProof = () => {
+    window.location.href = '/vault'
   }
 
   const sectionKeys = Object.keys(editableSections)
@@ -1831,11 +1910,36 @@ export default function ProposalWorkspace({
                 </div>
               </div>
 
+              {/* Visual Budget Sanity Cards */}
+              <BudgetSanityCards
+                budgetText={editableSections.line_item_budget || editableSections.budget || ''}
+                grant={selectedGrant}
+              />
+
+              {/* Action Success Toast Banner */}
+              {actionSuccessMessage && (
+                <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-800 flex items-center justify-between shadow-2xs animate-fadeIn">
+                  <div className="flex items-center gap-2">
+                    <CheckCheck className="size-4 text-emerald-600 shrink-0" />
+                    <span className="font-medium">{actionSuccessMessage}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActionSuccessMessage(null)}
+                    className="text-emerald-700 hover:text-emerald-900 cursor-pointer p-1"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              )}
+
               {/* Claims Audit Breakdown */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs text-slate-600 font-semibold px-1">
                   <span>Audited Atomic Claims ({verificationResults.length})</span>
-                  <span>Grounding Source: Document Vault & NITI Aayog Profile</span>
+                  <span className="text-[11px] text-slate-500">
+                    Grounding: Certified Document Vault &amp; Statutory Profiles
+                  </span>
                 </div>
 
                 {verificationResults.length > 0 ? (
@@ -1846,13 +1950,14 @@ export default function ProposalWorkspace({
 
                       return (
                         <div
-                          key={idx}
-                          className={`rounded-xl p-4 border text-xs transition-all ${isSupported
-                            ? 'bg-emerald-50/50 border-emerald-200'
-                            : isPartial
+                          key={item.id || idx}
+                          className={`rounded-xl p-4 border text-xs transition-all shadow-2xs ${
+                            isSupported
+                              ? 'bg-emerald-50/50 border-emerald-200'
+                              : isPartial
                               ? 'bg-amber-50/50 border-amber-200'
                               : 'bg-rose-50/50 border-rose-200'
-                            }`}
+                          }`}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-2.5 flex-1">
@@ -1863,32 +1968,115 @@ export default function ProposalWorkspace({
                               ) : (
                                 <ShieldAlert className="size-4 text-rose-600 shrink-0 mt-0.5" />
                               )}
-                              <div className="space-y-1">
-                                <p className="font-semibold text-slate-900 leading-snug">
-                                  {item.claim_text}
-                                </p>
-                                {item.evidence_span && (
-                                  <p className="text-[11px] text-slate-600 flex items-start gap-1">
-                                    <strong className="text-slate-800">Evidence Quote:</strong>{' '}
-                                    <span className="italic font-mono bg-white/80 px-1.5 py-0.5 rounded border border-slate-200">
-                                      &quot;{item.evidence_span}&quot;
-                                    </span>
+                              <div className="space-y-1.5 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="font-semibold text-slate-900 leading-snug">
+                                    {item.claim_text}
                                   </p>
+                                  {item.section_key && (
+                                    <span className="font-mono text-[9.5px] text-slate-500 bg-white/80 px-1.5 py-0.5 rounded border border-slate-200 shrink-0 lowercase">
+                                      #{item.section_key}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Clickable Vault Citation Excerpt with Yellow Highlight */}
+                                {item.evidence_span && (
+                                  <div
+                                    onClick={() => setSelectedEvidenceClaim(item)}
+                                    className="text-[11px] text-slate-600 flex items-start gap-1.5 cursor-pointer hover:bg-emerald-100/60 p-2 rounded-lg transition border border-dashed border-emerald-300 bg-white/70 group"
+                                    title="Click to view full corroborating document excerpt in slide-out viewer"
+                                  >
+                                    <FileText className="size-3.5 text-emerald-700 shrink-0 mt-0.5" />
+                                    <div className="flex-1">
+                                      <span className="text-slate-800 font-semibold mr-1">
+                                        Vault Evidence Citation:
+                                      </span>
+                                      <mark className="bg-amber-200 text-amber-950 font-semibold px-1.5 py-0.5 rounded text-[11px] shadow-2xs border border-amber-300">
+                                        &quot;{item.evidence_span}&quot;
+                                      </mark>
+                                      <span className="ml-2 text-[10px] text-indigo-600 font-bold group-hover:underline">
+                                        [View Excerpt &rarr;]
+                                      </span>
+                                    </div>
+                                  </div>
                                 )}
                               </div>
                             </div>
 
-                            <span
-                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase shrink-0 ${isSupported
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : isPartial
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-rose-100 text-rose-800'
-                                }`}
+                            {/* Claim Chip: clicking opens the slide-out viewer */}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedEvidenceClaim(item)}
+                              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase shrink-0 transition cursor-pointer shadow-2xs border ${
+                                isSupported
+                                  ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border-emerald-300'
+                                  : isPartial
+                                  ? 'bg-amber-100 hover:bg-amber-200 text-amber-800 border-amber-300'
+                                  : 'bg-rose-100 hover:bg-rose-200 text-rose-800 border-rose-300'
+                              }`}
+                              title="Click to view full grounding evidence in Document Vault"
                             >
-                              {isSupported ? 'Historical Fact ✓' : isPartial ? 'Project Target' : 'Contradiction'}
-                            </span>
+                              {isSupported ? (
+                                <>
+                                  <CheckCircle2 className="size-3 text-emerald-600" />
+                                  <span>Historical Fact &check;</span>
+                                </>
+                              ) : isPartial ? (
+                                <>
+                                  <AlertCircle className="size-3 text-amber-600" />
+                                  <span>Project Target</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ShieldAlert className="size-3 text-rose-600" />
+                                  <span>Contradiction / Missing</span>
+                                </>
+                              )}
+                            </button>
                           </div>
+
+                          {/* Quick Actions for UNSUPPORTED or PARTIAL claims */}
+                          {(!isSupported || isPartial) && (
+                            <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-slate-200/80 mt-2.5">
+                              <span className="text-[10px] uppercase font-bold text-slate-500 mr-1">
+                                Quick Actions:
+                              </span>
+
+                              {/* 1. Edit Claim */}
+                              <button
+                                type="button"
+                                onClick={() => handleEditClaimOpen(item)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white border border-slate-300 hover:bg-indigo-50 hover:border-indigo-400 text-slate-700 hover:text-indigo-700 text-[11px] font-semibold transition cursor-pointer shadow-2xs"
+                                title="Manually update this sentence with true verified number"
+                              >
+                                <Edit3 className="size-3 text-indigo-600" />
+                                <span>Edit Claim</span>
+                              </button>
+
+                              {/* 2. Drop Claim */}
+                              <button
+                                type="button"
+                                onClick={() => setDroppingClaim(item)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white border border-rose-200 hover:bg-rose-50 text-rose-700 text-[11px] font-semibold transition cursor-pointer shadow-2xs hover:border-rose-300"
+                                title="Auto-remove hallucinated sentence from proposal"
+                              >
+                                <Trash2 className="size-3 text-rose-600" />
+                                <span>Drop Claim</span>
+                              </button>
+
+                              {/* 3. Attach Document Proof */}
+                              <button
+                                type="button"
+                                onClick={handleAttachProof}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white border border-slate-300 hover:bg-amber-50 hover:border-amber-400 text-slate-700 hover:text-amber-800 text-[11px] font-semibold transition cursor-pointer shadow-2xs"
+                                title="Upload corroborating audit report or certificate in Document Vault"
+                              >
+                                <Paperclip className="size-3 text-amber-600" />
+                                <span>Attach Document Proof</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )
                     })}
@@ -1898,7 +2086,7 @@ export default function ProposalWorkspace({
                     <ListChecks className="size-6 mx-auto text-slate-400 mb-2" />
                     <p className="font-semibold text-slate-700">No Fact-Check Audit Run Yet</p>
                     <p className="mt-1">
-                      Click <strong>&quot;Run Fact-Check Audit&quot;</strong> above to extract atomic claims and verify them against the NGO vault.
+                      Click <strong>&quot;Re-Run Audit&quot;</strong> above to extract atomic claims and verify them against the NGO vault.
                     </p>
                   </div>
                 )}
@@ -1931,6 +2119,149 @@ export default function ProposalWorkspace({
             <Sparkles className="w-4 h-4" />
             Generate Proposal for {activeNgo?.name || 'CRY'}
           </button>
+        </div>
+      )}
+
+      {/* Slide-out Evidence Viewer Drawer */}
+      <EvidenceViewerDrawer
+        isOpen={!!selectedEvidenceClaim}
+        onClose={() => setSelectedEvidenceClaim(null)}
+        claim={selectedEvidenceClaim}
+        proposalId={proposalData?.proposal_id}
+      />
+
+      {/* Quick Action Modal 1: Edit Claim */}
+      {editingClaim && (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200 animate-fadeIn">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Edit3 className="size-5 text-indigo-600" />
+                <h3 className="text-sm font-bold text-slate-900">
+                  Edit Asserted Claim in Proposal
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingClaim(null)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                  Current Statement (In #{editingClaim.section_key || activeSectionKey})
+                </label>
+                <div className="p-3 bg-slate-50 rounded-lg text-xs text-slate-700 border border-slate-200 leading-relaxed font-serif">
+                  &quot;{editingClaim.claim_text}&quot;
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Verified Replacement Sentence / Factual Number
+                </label>
+                <textarea
+                  rows={4}
+                  value={editClaimText}
+                  onChange={(e) => setEditClaimText(e.target.value)}
+                  className="w-full text-xs font-serif rounded-lg border border-slate-300 p-3 text-slate-900 focus:border-indigo-500 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 bg-white leading-relaxed"
+                  placeholder="Enter the verified statement or accurate number..."
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  The proposal section will be updated with this verified text and re-audited automatically.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setEditingClaim(null)}
+                className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isEditingClaimSubmitting || !editClaimText.trim()}
+                onClick={handleEditClaimSave}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-xs transition cursor-pointer disabled:opacity-50"
+              >
+                {isEditingClaimSubmitting ? (
+                  <>
+                    <div className="size-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Saving &amp; Re-Auditing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="size-3.5" />
+                    <span>Save &amp; Re-Verify</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Action Modal 2: Drop Claim */}
+      {droppingClaim && (
+        <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 animate-fadeIn">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2 bg-rose-100 rounded-full">
+                <Trash2 className="size-5 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Drop Hallucinated / Unsupported Claim
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Remove this sentence from section #{droppingClaim.section_key || activeSectionKey}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-rose-50/60 rounded-lg text-xs text-rose-950 border border-rose-200 italic font-serif">
+              &quot;{droppingClaim.claim_text}&quot;
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              This sentence will be automatically purged from the proposal draft to eliminate fabrication risk, and the section will be re-audited.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setDroppingClaim(null)}
+                className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDroppingClaimSubmitting}
+                onClick={handleDropClaimConfirm}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg shadow-xs transition cursor-pointer disabled:opacity-50"
+              >
+                {isDroppingClaimSubmitting ? (
+                  <>
+                    <div className="size-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Purging Claim...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="size-3.5" />
+                    <span>Confirm &amp; Drop Claim</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

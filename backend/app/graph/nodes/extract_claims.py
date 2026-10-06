@@ -99,7 +99,7 @@ def _extract_heuristic_claims(full_text: str) -> list[dict]:
     if budget_explicit:
         amt = budget_explicit.group(1).strip()
         claims.append({
-            "section": "budget",
+            "section": "line_item_budget",
             "claim_text": f"Total proposed project cost requested is ₹{amt}",
             "type": "numeric",
         })
@@ -114,7 +114,7 @@ def _extract_heuristic_claims(full_text: str) -> list[dict]:
         digits = re.sub(r"[^\d]", "", ben_match.group(1))
         if digits and int(digits) >= 10:
             claims.append({
-                "section": "intervention",
+                "section": "proposed_intervention",
                 "claim_text": f"Proposed intervention serves {ben_match.group(1)} {ben_match.group(2)}",
                 "type": "numeric",
             })
@@ -141,12 +141,12 @@ def extract_claims(state: GrantSetuState) -> GrantSetuState:
     if not sections:
         return {"claims": [], "status": "claims_extracted"}
 
-    # Sample text from ALL drafted sections (supports standard, csr, and govt templates)
+    # Sample text from ALL drafted sections with explicit section identifiers
     sampled_text: list[str] = []
     for k, v in sections.items():
         if v and isinstance(v, str) and v.strip():
             header = k.replace("_", " ").title()
-            sampled_text.append(f"### Section [{header}]:\n{v[:1200]}")
+            sampled_text.append(f"### Section [{k}] ({header}):\n{v[:1500]}")
 
     full_sample = "\n\n".join(sampled_text)
     if not full_sample.strip():
@@ -154,13 +154,15 @@ def extract_claims(state: GrantSetuState) -> GrantSetuState:
 
     heuristic_claims = _extract_heuristic_claims(full_sample)
 
-    prompt = f"""You are an expert factual claim extraction model (FActScore framework).
-Extract 6 to 10 key atomic factual statements from the following grant proposal sections.
+    prompt = f"""You are a precise, deterministic factual claim extraction engine (FActScore framework).
+Extract 6 to 10 key atomic factual statements from the provided proposal sections.
 
-Focus on:
-1. Quantitative/Numeric claims: beneficiary counts, target schools, training hours, budget totals, unit rates.
-2. Statutory credentials: NITI Aayog Darpan ID, 12A/80G tax exemptions, FCRA registration, vintage/year founded.
-3. Track record: past program outcomes and institutional achievements.
+Extraction Rules:
+1. Extract EXACT atomic claims from the text without summarizing, paraphrasing, or altering facts.
+2. Group claims into their respective sections using the section key provided in brackets (e.g. "organisation_background", "line_item_budget", "proposed_intervention").
+3. Include statutory credentials (Darpan ID, 12A/80G, FCRA status, founding year/vintage).
+4. Include quantitative budget and beneficiary numbers.
+5. Deterministic sorting: Always extract in order of sections appearing in the proposal.
 
 Proposal content:
 {full_sample}
@@ -169,45 +171,67 @@ Respond ONLY with valid JSON matching this schema:
 {{
   "claims": [
     {{
-      "section": "<section_name>",
-      "claim_text": "<concise, atomic factual statement>",
+      "section": "<exact_section_key>",
+      "claim_text": "<concise, atomic factual statement from proposal>",
       "type": "numeric" or "qualitative"
     }}
   ]
 }}
 """
 
+    combined_claims: list[dict] = []
     try:
-        raw_response = invoke_with_fallback(prompt, tier="flash", temperature=0.2)
+        # Use temperature=0.0 for 100% deterministic extraction
+        raw_response = invoke_with_fallback(prompt, tier="flash", temperature=0.0)
         parsed = parse_json_response(raw_response)
         llm_claims = parsed.get("claims", [])
         if llm_claims:
             logger.info("LLM extracted %d atomic factual claims", len(llm_claims))
-            # Only supplement with missing statutory credentials (e.g. Darpan ID) if omitted by LLM
-            existing_texts = {c.get("claim_text", "").lower() for c in llm_claims}
-            for hc in heuristic_claims:
-                if "darpan id" in hc.get("claim_text", "").lower():
-                    if not any("darpan" in et for et in existing_texts):
-                        llm_claims.append(hc)
-            return {
-                "claims": llm_claims,
-                "status": "claims_extracted",
-            }
+            combined_claims.extend(llm_claims)
     except Exception as e:
-        logger.warning("Claim extraction LLM call failed (%s); falling back to heuristic patterns", e)
+        logger.warning("Claim extraction LLM call failed (%s); using deterministic patterns", e)
 
-    # Use heuristic extraction if LLM returned empty or failed
-    if heuristic_claims:
-        logger.info("Extracted %d atomic factual claims via heuristic patterns", len(heuristic_claims))
+    # Merge heuristic claims to ensure core statutory credentials are NEVER missed
+    seen_texts = {c.get("claim_text", "").strip().lower() for c in combined_claims}
+    for hc in heuristic_claims:
+        hc_text = hc.get("claim_text", "").strip().lower()
+        if hc_text not in seen_texts:
+            # Check partial overlap
+            if not any(
+                ("darpan" in hc_text and "darpan" in st)
+                or ("12a" in hc_text and "12a" in st)
+                or ("fcra" in hc_text and "fcra" in st)
+                for st in seen_texts
+            ):
+                combined_claims.append(hc)
+                seen_texts.add(hc_text)
+
+    # Standardize section keys
+    valid_keys = set(sections.keys())
+    for c in combined_claims:
+        sec = c.get("section") or ""
+        if sec not in valid_keys:
+            # Map common variants
+            if "budget" in sec:
+                c["section"] = "line_item_budget" if "line_item_budget" in valid_keys else sec
+            elif "org" in sec or "background" in sec:
+                c["section"] = "organisation_background" if "organisation_background" in valid_keys else sec
+            elif "intervention" in sec:
+                c["section"] = "proposed_intervention" if "proposed_intervention" in valid_keys else sec
+            elif valid_keys:
+                c["section"] = list(valid_keys)[0]
+        c["section_key"] = c.get("section")
+
+    if combined_claims:
         return {
-            "claims": heuristic_claims,
+            "claims": combined_claims,
             "status": "claims_extracted",
         }
 
     # Final fallback if no patterns matched
     fallback_claims = [
-        {"section": "organisation_background", "claim_text": "Organization holds valid statutory registrations (12A, 80G, Darpan ID)", "type": "qualitative"},
-        {"section": "executive_summary", "claim_text": "Proposed intervention targets underprivileged student cohorts", "type": "qualitative"},
+        {"section": "organisation_background", "section_key": "organisation_background", "claim_text": "Organization holds valid statutory registrations (12A, 80G, Darpan ID)", "type": "qualitative"},
+        {"section": "executive_summary", "section_key": "executive_summary", "claim_text": "Proposed intervention targets underprivileged student cohorts", "type": "qualitative"},
     ]
     return {
         "claims": fallback_claims,

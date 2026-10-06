@@ -113,6 +113,22 @@ export const applySectionRevision = (proposalId, sectionKey, refinedText, rerunV
     rerun_verification: rerunVerification,
   }).then((r) => r.data)
 
+export const editClaim = (proposalId, sectionKey, oldText, newText) =>
+  api.post(`/proposals/${proposalId}/edit-claim`, {
+    section_key: sectionKey,
+    old_text: oldText,
+    new_text: newText,
+  }).then((r) => r.data)
+
+export const dropClaim = (proposalId, sectionKey, claimText) =>
+  api.post(`/proposals/${proposalId}/drop-claim`, {
+    section_key: sectionKey,
+    claim_text: claimText,
+  }).then((r) => r.data)
+
+export const getEvidenceChunk = (proposalId, chunkId) =>
+  api.get(`/proposals/${proposalId}/evidence-chunk/${chunkId}`).then((r) => r.data)
+
 
 
 // NGO registration wizard (Task 1) — multipart: form fields + certificate PDFs.
