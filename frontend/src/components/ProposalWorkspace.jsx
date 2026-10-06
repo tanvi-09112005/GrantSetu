@@ -301,32 +301,22 @@ export default function ProposalWorkspace({
   }
 
   const handlePrintPdf = () => {
-    setViewMode('document')
-    setTimeout(() => {
-      window.print()
-    }, 150)
+    if (viewMode !== 'document') {
+      setViewMode('document')
+      setTimeout(() => {
+        window.print()
+      }, 250)
+    } else {
+      setTimeout(() => {
+        window.print()
+      }, 100)
+    }
   }
 
-  const handleDownloadPdf = async () => {
-    if (!proposalData?.proposal_id) return
-    setIsExportingPdf(true)
-    setError(null)
-    try {
-      const blob = await exportProposalPdf(proposalData.proposal_id)
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `Grant_Proposal_${(activeNgo?.name || 'Proposal').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      window.URL.revokeObjectURL(url)
-    } catch (err) {
-      console.error('PDF export failed, falling back to browser print:', err)
-      handlePrintPdf()
-    } finally {
-      setIsExportingPdf(false)
-    }
+  const handleDownloadPdf = () => {
+    // Directly invoke the native high-fidelity browser print engine (Save as PDF)
+    // which accurately renders the preview layout, fonts, borders, headers, and footers
+    handlePrintPdf()
   }
 
   const handleDownloadDocx = async () => {
@@ -1131,7 +1121,7 @@ export default function ProposalWorkspace({
               <button
                 onClick={handleDownloadPdf}
                 disabled={isExportingPdf}
-                title="Download Official ReportLab Vector PDF"
+                title="Download Official Proposal PDF"
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
               >
                 {isExportingPdf ? (

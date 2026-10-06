@@ -116,19 +116,19 @@ _SERIF_ITALIC = "Times-Italic"
 _SANS = "Helvetica"
 _SANS_BOLD = "Helvetica-Bold"
 
-_NAVY = colors.HexColor("#0F2F64")
-_SLATE_DARK = colors.HexColor("#1E293B")
-_SLATE_MUTED = colors.HexColor("#64748B")
+_NAVY = colors.HexColor("#0F172A")
+_SLATE_DARK = colors.HexColor("#0F172A")
+_SLATE_MUTED = colors.HexColor("#475569")
 _BG_LIGHT = colors.HexColor("#F8FAFC")
-_BORDER_COLOR = colors.HexColor("#CBD5E1")
+_BORDER_COLOR = colors.HexColor("#334155")
 
 _COVER_SUPER = ParagraphStyle(
     "CoverSuper", parent=_styles["Normal"], fontName=_SANS_BOLD,
-    fontSize=10, leading=14, textColor=_NAVY, alignment=1, spaceAfter=8,
+    fontSize=10, leading=14, textColor=_SLATE_DARK, alignment=1, spaceAfter=8,
 )
 _COVER_TITLE = ParagraphStyle(
     "CoverTitle", parent=_styles["Title"], fontName=_SERIF_BOLD,
-    fontSize=22, leading=28, textColor=_NAVY, alignment=1, spaceAfter=8,
+    fontSize=22, leading=28, textColor=_SLATE_DARK, alignment=1, spaceAfter=8,
 )
 _COVER_SUBTITLE = ParagraphStyle(
     "CoverSubtitle", parent=_styles["Normal"], fontName=_SERIF_ITALIC,
@@ -136,7 +136,7 @@ _COVER_SUBTITLE = ParagraphStyle(
 )
 _LETTERHEAD_NAME = ParagraphStyle(
     "LetterheadName", parent=_styles["Normal"], fontName=_SERIF_BOLD,
-    fontSize=16, leading=20, textColor=_NAVY, alignment=0,
+    fontSize=16, leading=20, textColor=_SLATE_DARK, alignment=0,
 )
 _LETTERHEAD_META = ParagraphStyle(
     "LetterheadMeta", parent=_styles["Normal"], fontName=_SERIF,
@@ -478,9 +478,12 @@ def _parse_markdown_table_to_flowable(table_lines: list[str]) -> Table | None:
         while len(r) < num_cols:
             r.append("")
 
-    # Calculate column widths (available width = 6.5 inches)
+    # Calculate proportional column widths (available width = 6.5 inches)
     avail_width = 6.5 * inch
-    col_width = avail_width / num_cols
+    max_lens = [max(len(r[c]) for r in cleaned_rows) for c in range(num_cols)]
+    weights = [max(l, 4) for l in max_lens]
+    sum_weights = sum(weights) or 1
+    col_widths = [(w / sum_weights) * avail_width for w in weights]
 
     flowable_data = []
     for r_idx, row in enumerate(cleaned_rows):
@@ -498,21 +501,21 @@ def _parse_markdown_table_to_flowable(table_lines: list[str]) -> Table | None:
                     row_flow.append(Paragraph(clean_text, _TABLE_CELL))
         flowable_data.append(row_flow)
 
-    table = Table(flowable_data, colWidths=[col_width] * num_cols, repeatRows=1)
+    table = Table(flowable_data, colWidths=col_widths, repeatRows=1)
     table_style = [
         ("BACKGROUND", (0, 0), (-1, 0), _NAVY),
         ("GRID", (0, 0), (-1, -1), 0.5, _BORDER_COLOR),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
     ]
     # Highlight total rows and alternating rows
     for i in range(1, len(flowable_data)):
         is_total_row = any("total" in c.lower() for c in cleaned_rows[i])
         if is_total_row:
-            table_style.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor("#0F2F64")))
+            table_style.append(("BACKGROUND", (0, i), (-1, i), _NAVY))
             table_style.append(("LINEABOVE", (0, i), (-1, i), 1.2, _NAVY))
             for cell_flow in flowable_data[i]:
                 cell_flow.style.textColor = colors.white
@@ -649,8 +652,8 @@ def _build_statutory_end_page(
     )
     dec_table = Table([[Paragraph(dec_text, _DECLARATION)]], colWidths=[6.5 * inch])
     dec_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FEF3C7")),  # subtle amber tint
-        ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#F59E0B")),
+        ("BACKGROUND", (0, 0), (-1, -1), _BG_LIGHT),
+        ("BOX", (0, 0), (-1, -1), 0.8, _BORDER_COLOR),
         ("TOPPADDING", (0, 0), (-1, -1), 8),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
         ("LEFTPADDING", (0, 0), (-1, -1), 10),
@@ -829,7 +832,7 @@ def _set_cell_background(cell, fill_hex: str):
     tcPr.append(shd)
 
 
-def _set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
+def _set_cell_margins(cell, top=100, bottom=100, left=140, right=140):
     """Set padding for a Word table cell in dxa (1 pt = 20 dxa)."""
     tcPr = cell._tc.get_or_add_tcPr()
     tcMar = parse_xml(
@@ -843,6 +846,22 @@ def _set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
     tcPr.append(tcMar)
 
 
+def _set_table_borders(table, color="334155", sz="4", val="single"):
+    """Set institutional borders on a Word table."""
+    tblPr = table._tbl.tblPr
+    borders = parse_xml(
+        f'<w:tblBorders {nsdecls("w")}>'
+        f'<w:top w:val="{val}" w:sz="{sz}" w:space="0" w:color="{color}"/>'
+        f'<w:bottom w:val="{val}" w:sz="{sz}" w:space="0" w:color="{color}"/>'
+        f'<w:insideH w:val="{val}" w:sz="{sz}" w:space="0" w:color="{color}"/>'
+        f'<w:insideV w:val="{val}" w:sz="{sz}" w:space="0" w:color="{color}"/>'
+        f'<w:left w:val="{val}" w:sz="{sz}" w:space="0" w:color="{color}"/>'
+        f'<w:right w:val="{val}" w:sz="{sz}" w:space="0" w:color="{color}"/>'
+        f'</w:tblBorders>'
+    )
+    tblPr.append(borders)
+
+
 def generate_proposal_docx(
     ngo_profile: dict[str, Any],
     grant: dict[str, Any],
@@ -853,20 +872,65 @@ def generate_proposal_docx(
     ngo_id: str | None = None,
     proposal_id: str = "",
 ) -> Path:
-    """Render a proposal to an editable Microsoft Word (.docx) document."""
+    """Render a proposal to an editable Microsoft Word (.docx) document with institutional styling."""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    ngo_name = ngo_profile.get("name", "Applicant Organization")
+    darpan_id = ngo_profile.get("darpan_id") or "Domestic"
+    today_str = date.today().strftime("%d %B %Y")
+    ref_no = f"GS/2026/PROP-{proposal_id[:8].upper() if proposal_id else 'INST'}"
 
     assets = get_ngo_branding_assets(ngo_id or ngo_profile.get("id"))
     doc = docx.Document()
 
-    # 1-inch margins
-    sections = doc.sections
-    for s in sections:
-        s.top_margin = Inches(1.0)
-        s.bottom_margin = Inches(1.0)
-        s.left_margin = Inches(1.0)
-        s.right_margin = Inches(1.0)
+    # Document margins: 0.8 inch throughout
+    for s in doc.sections:
+        s.top_margin = Inches(0.8)
+        s.bottom_margin = Inches(0.8)
+        s.left_margin = Inches(0.8)
+        s.right_margin = Inches(0.8)
+        s.different_first_page_header_footer = True
+
+        # Header for pages 2+
+        hdr_p = s.header.paragraphs[0]
+        hdr_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        hdr_r = hdr_p.add_run(f"Official Institutional Proposal  |  {grant.get('title', 'Grant Application')}")
+        hdr_r.font.name = "Times New Roman"
+        hdr_r.font.size = Pt(8.5)
+        hdr_r.font.color.rgb = RGBColor(100, 116, 139)
+
+        # Footer for pages 2+
+        ftr_p = s.footer.paragraphs[0]
+        ftr_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        ftr_r = ftr_p.add_run(f"{ngo_name}  |  {grant.get('title', 'Project Proposal')}  |  Confidential Dossier")
+        ftr_r.font.name = "Times New Roman"
+        ftr_r.font.size = Pt(8.5)
+        ftr_r.font.color.rgb = RGBColor(100, 116, 139)
+
+    # Configure Default Styles for Times New Roman Serif Typography
+    normal_style = doc.styles["Normal"]
+    normal_style.font.name = "Times New Roman"
+    normal_style.font.size = Pt(11)
+    normal_style.font.color.rgb = RGBColor(15, 23, 42)
+
+    h1_style = doc.styles["Heading 1"]
+    h1_style.font.name = "Times New Roman"
+    h1_style.font.size = Pt(13)
+    h1_style.font.bold = True
+    h1_style.font.color.rgb = RGBColor(15, 23, 42)
+    h1_style.paragraph_format.space_before = Pt(14)
+    h1_style.paragraph_format.space_after = Pt(4)
+    h1_style.paragraph_format.keep_with_next = True
+
+    h2_style = doc.styles["Heading 2"]
+    h2_style.font.name = "Times New Roman"
+    h2_style.font.size = Pt(11.5)
+    h2_style.font.bold = True
+    h2_style.font.color.rgb = RGBColor(30, 41, 59)
+    h2_style.paragraph_format.space_before = Pt(10)
+    h2_style.paragraph_format.space_after = Pt(3)
+    h2_style.paragraph_format.keep_with_next = True
 
     # 1. Front Cover Page
     logo_data = assets.get("logo")
@@ -875,7 +939,7 @@ def generate_proposal_docx(
             logo_p = doc.add_paragraph()
             logo_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             run = logo_p.add_run()
-            run.add_picture(io.BytesIO(logo_data), width=Inches(2.2))
+            run.add_picture(io.BytesIO(logo_data), width=Inches(2.0))
         except Exception:
             pass
 
@@ -883,33 +947,33 @@ def generate_proposal_docx(
     p_super.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r_super = p_super.add_run("PROPOSAL FOR GRANT ASSISTANCE")
     r_super.bold = True
-    r_super.font.size = Pt(11)
-    r_super.font.color.rgb = RGBColor(15, 47, 100)
+    r_super.font.name = "Times New Roman"
+    r_super.font.size = Pt(10.5)
+    r_super.font.color.rgb = RGBColor(15, 23, 42)
 
     p_title = doc.add_paragraph()
     p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r_title = p_title.add_run(grant.get("title", "Grant Proposal"))
     r_title.bold = True
-    r_title.font.size = Pt(22)
-    r_title.font.color.rgb = RGBColor(15, 47, 100)
+    r_title.font.name = "Times New Roman"
+    r_title.font.size = Pt(20)
+    r_title.font.color.rgb = RGBColor(15, 23, 42)
 
     p_sub = doc.add_paragraph()
     p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r_sub = p_sub.add_run(f"Submitted to {grant.get('funder_name', 'Grant Agency')}")
     r_sub.italic = True
-    r_sub.font.size = Pt(12)
-    r_sub.font.color.rgb = RGBColor(100, 116, 139)
+    r_sub.font.name = "Times New Roman"
+    r_sub.font.size = Pt(11)
+    r_sub.font.color.rgb = RGBColor(71, 85, 105)
 
     doc.add_paragraph()  # spacer
 
-    # Metadata table
-    ngo_name = ngo_profile.get("name", "Applicant Organization")
-    darpan_id = ngo_profile.get("darpan_id") or "Domestic"
-    today_str = date.today().strftime("%d %B %Y")
-    ref_no = f"GS/2026/PROP-{proposal_id[:8].upper() if proposal_id else 'INST'}"
-
+    # Metadata table (2 columns: 2.2 in, 4.6 in)
     table = doc.add_table(rows=4, cols=2)
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    _set_table_borders(table, color="334155")
+
     meta_rows = [
         ("SUBMITTED TO:", "SUBMITTED BY:"),
         (
@@ -926,36 +990,83 @@ def generate_proposal_docx(
         is_hdr = (r_idx in (0, 2))
         cell0 = table.cell(r_idx, 0)
         cell1 = table.cell(r_idx, 1)
+        cell0.width = Inches(2.2)
+        cell1.width = Inches(4.6)
         cell0.text = col0
         cell1.text = col1
-        _set_cell_margins(cell0)
-        _set_cell_margins(cell1)
+        _set_cell_margins(cell0, top=90, bottom=90, left=140, right=140)
+        _set_cell_margins(cell1, top=90, bottom=90, left=140, right=140)
+
         if is_hdr:
-            _set_cell_background(cell0, "0F2F64")
-            _set_cell_background(cell1, "0F2F64")
-            cell0.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
-            cell0.paragraphs[0].runs[0].bold = True
-            cell1.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
-            cell1.paragraphs[0].runs[0].bold = True
+            _set_cell_background(cell0, "0F172A")
+            _set_cell_background(cell1, "0F172A")
+            for c in (cell0, cell1):
+                p = c.paragraphs[0]
+                p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                for r in p.runs:
+                    r.font.name = "Times New Roman"
+                    r.font.size = Pt(9.5)
+                    r.font.color.rgb = RGBColor(255, 255, 255)
+                    r.bold = True
         else:
             _set_cell_background(cell0, "F8FAFC")
             _set_cell_background(cell1, "F8FAFC")
+            for c in (cell0, cell1):
+                p = c.paragraphs[0]
+                p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                for r in p.runs:
+                    r.font.name = "Times New Roman"
+                    r.font.size = Pt(9.5)
+                    r.font.color.rgb = RGBColor(15, 23, 42)
 
     doc.add_page_break()
 
     # 2. Executive Transmittal Letter
-    doc.add_heading(ngo_name, level=1)
-    doc.add_paragraph(f"NITI Aayog Darpan ID: {darpan_id} | 12A & 80G Tax Exempt | {ngo_profile.get('location', '')}")
-    doc.add_paragraph(f"Date: {today_str}")
-    doc.add_paragraph(f"To,\nThe Selection Committee\n{grant.get('funder_name')}\nSubject: Submission of Proposal under {grant.get('title')}")
-    doc.add_paragraph(
-        f"Dear Sir / Madam,\n\nOn behalf of {ngo_name}, we are pleased to submit the attached project proposal for "
-        f"your review. Our mission is: \"{ngo_profile.get('mission', '')}\". We have structured an evidence-grounded "
-        f"program that fully aligns with your institutional mandate.\n\n"
-        f"We certify that all historical track records and statutory credentials cited herein are authentic. "
-        f"We thank you for your consideration."
+    h_let = doc.add_paragraph()
+    r_let = h_let.add_run(ngo_name)
+    r_let.bold = True
+    r_let.font.name = "Times New Roman"
+    r_let.font.size = Pt(15)
+    r_let.font.color.rgb = RGBColor(15, 23, 42)
+
+    p_meta = doc.add_paragraph()
+    r_meta = p_meta.add_run(f"NITI Aayog Darpan ID: {darpan_id} | 12A & 80G Certified | {ngo_profile.get('location', '')}")
+    r_meta.font.name = "Times New Roman"
+    r_meta.font.size = Pt(9.5)
+    r_meta.font.color.rgb = RGBColor(100, 116, 139)
+
+    p_date = doc.add_paragraph(f"Date: {today_str}")
+    p_date.paragraph_format.space_before = Pt(8)
+    p_date.paragraph_format.space_after = Pt(6)
+
+    p_addr = doc.add_paragraph(
+        f"To,\nThe Selection Committee\n{grant.get('funder_name')}\nSubject: Formal Grant Assistance Proposal under {grant.get('title')}"
     )
-    doc.add_paragraph("Yours sincerely,\nAuthorized Signatory\n" + ngo_name)
+    p_addr.paragraph_format.space_after = Pt(12)
+
+    # Justified body paragraphs for transmittal letter
+    for para_text in [
+        f"Dear Sir / Madam,",
+        f"On behalf of {ngo_name}, we are pleased to submit the attached project proposal for your formal review and evaluation under {grant.get('title')}. Our institution is dedicated to: \"{ngo_profile.get('mission', '')}\". We have structured an evidence-grounded, milestone-driven program that fully aligns with your institutional mandate.",
+        f"We certify that all historical track records, audited credentials, and financial schedules cited herein are true, authentic, and substantiated by our certified filings. We remain fully committed to transparent governance, rigorous third-party audits, and regular milestone reporting.",
+        f"We thank you for your leadership and consideration.",
+    ]:
+        p = doc.add_paragraph(para_text)
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        p.paragraph_format.line_spacing = 1.15
+        p.paragraph_format.space_after = Pt(6)
+
+    p_sign = doc.add_paragraph("Yours faithfully,\n")
+    p_sign.paragraph_format.space_before = Pt(10)
+    sig_data = assets.get("signature")
+    if sig_data:
+        try:
+            p_sign.add_run().add_picture(io.BytesIO(sig_data), width=Inches(1.6))
+            p_sign.add_run("\n")
+        except Exception:
+            pass
+    r_sig_title = p_sign.add_run(f"Authorized Signatory & Managing Trustee\n{ngo_name}")
+    r_sig_title.bold = True
 
     doc.add_page_break()
 
@@ -966,7 +1077,7 @@ def generate_proposal_docx(
 
     for s_idx, key in enumerate(order, start=1):
         title = SECTION_TITLES.get(key, key.replace("_", " ").title())
-        doc.add_heading(f"{s_idx}. {title}", level=1)
+        doc.add_heading(f"{s_idx}.0 {title.upper()}", level=1)
         content = draft_sections.get(key, "")
 
         if not content:
@@ -981,13 +1092,13 @@ def generate_proposal_docx(
                 idx += 1
                 continue
 
-            # Markdown Table
+            # Markdown Table Parsing
             if trimmed.startswith("|") and trimmed.endswith("|"):
                 tbl_lines = []
                 while idx < len(lines) and lines[idx].strip().startswith("|"):
                     tbl_lines.append(lines[idx])
                     idx += 1
-                # Parse and add Word table
+
                 cleaned_rows = []
                 for tline in tbl_lines:
                     if re.match(r"^\|[-:\s|]+\|$", tline.strip()):
@@ -995,32 +1106,93 @@ def generate_proposal_docx(
                     cells = [c.strip() for c in tline.strip().split("|")[1:-1]]
                     if cells:
                         cleaned_rows.append(cells)
+
                 if cleaned_rows:
                     num_cols = max(len(r) for r in cleaned_rows)
                     wtbl = doc.add_table(rows=len(cleaned_rows), cols=num_cols)
                     wtbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+                    _set_table_borders(wtbl, color="334155")
+
+                    # Calculate proportional column widths (total available = 6.8 inches)
+                    col_lens = [0] * num_cols
+                    for r in cleaned_rows:
+                        for c_i, val in enumerate(r):
+                            if c_i < num_cols:
+                                col_lens[c_i] = max(col_lens[c_i], len(val))
+                    tot_len = sum(col_lens) or 1
+                    col_widths = [max(0.9, 6.8 * (cl / tot_len)) for cl in col_lens]
+                    # Normalize to 6.8 total
+                    norm_factor = 6.8 / sum(col_widths)
+                    col_widths = [w * norm_factor for w in col_widths]
+
                     for r_i, row in enumerate(cleaned_rows):
+                        is_header_row = (r_i == 0)
                         for c_i, val in enumerate(row):
                             if c_i < num_cols:
                                 wcell = wtbl.cell(r_i, c_i)
+                                wcell.width = Inches(col_widths[c_i])
                                 wcell.text = val
-                                _set_cell_margins(wcell)
-                                if r_i == 0:
-                                    _set_cell_background(wcell, "0F2F64")
-                                    if wcell.paragraphs and wcell.paragraphs[0].runs:
-                                        wcell.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
-                                        wcell.paragraphs[0].runs[0].bold = True
-                                elif r_i % 2 == 1:
-                                    _set_cell_background(wcell, "F8FAFC")
+                                _set_cell_margins(wcell, top=70, bottom=70, left=110, right=110)
+
+                                if is_header_row:
+                                    _set_cell_background(wcell, "0F172A")
+                                    p = wcell.paragraphs[0]
+                                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                                    p.paragraph_format.line_spacing = 1.05
+                                    for r in p.runs:
+                                        r.font.name = "Times New Roman"
+                                        r.font.size = Pt(9)
+                                        r.font.color.rgb = RGBColor(255, 255, 255)
+                                        r.bold = True
+                                else:
+                                    if r_i % 2 == 1:
+                                        _set_cell_background(wcell, "F8FAFC")
+                                    else:
+                                        _set_cell_background(wcell, "FFFFFF")
+                                    p = wcell.paragraphs[0]
+                                    # Right align currency/numeric columns
+                                    is_num = any(k in val for k in ("INR", "₹", "%", "Rs.")) or val.replace(",", "").replace(".", "").isdigit()
+                                    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_num else WD_ALIGN_PARAGRAPH.LEFT
+                                    p.paragraph_format.line_spacing = 1.05
+                                    for r in p.runs:
+                                        r.font.name = "Times New Roman"
+                                        r.font.size = Pt(9)
+                                        r.font.color.rgb = RGBColor(15, 23, 42)
+
+                    p_spacer = doc.add_paragraph()
+                    p_spacer.paragraph_format.space_before = Pt(4)
+                    p_spacer.paragraph_format.space_after = Pt(4)
                 continue
 
+            # List Bullet
             if trimmed.startswith("- ") or trimmed.startswith("* "):
-                doc.add_paragraph(trimmed[2:], style="List Bullet")
+                p = doc.add_paragraph(style="List Bullet")
+                p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                p.paragraph_format.line_spacing = 1.15
+                p.paragraph_format.space_after = Pt(4)
+                bullet_text = trimmed[2:]
+                parts = re.split(r"(\*\*.*?\*\*)", bullet_text)
+                for part in parts:
+                    if part.startswith("**") and part.endswith("**"):
+                        p.add_run(part[2:-2]).bold = True
+                    else:
+                        p.add_run(part)
                 idx += 1
                 continue
 
-            # Regular paragraph
+            # Subheadings ###
+            if trimmed.startswith("### "):
+                h = doc.add_heading(trimmed[4:].strip(), level=2)
+                h.paragraph_format.space_before = Pt(8)
+                h.paragraph_format.space_after = Pt(3)
+                idx += 1
+                continue
+
+            # Regular Narrative Paragraph (Fully Justified)
             p = doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            p.paragraph_format.line_spacing = 1.15
+            p.paragraph_format.space_after = Pt(6)
             parts = re.split(r"(\*\*.*?\*\*)", trimmed)
             for part in parts:
                 if part.startswith("**") and part.endswith("**"):
@@ -1031,16 +1203,22 @@ def generate_proposal_docx(
 
     # 4. Statutory End-Page & Sign-Off
     doc.add_page_break()
-    doc.add_heading("Statutory Declaration, Banking Credentials & Sign-Off", level=1)
-    doc.add_paragraph(
+    doc.add_heading(f"{len(order) + 1}.0 STATUTORY DECLARATION, BANKING CREDENTIALS & SIGN-OFF", level=1)
+
+    p_dec = doc.add_paragraph(
         f"We, the authorized trustees and representatives of {ngo_name}, solemnly declare that all statements, "
-        f"statutory filings, and budgetary requests submitted in this proposal are true, authentic, and "
-        f"substantiated by our certified financial audits. No requested funds shall be duplicated across any other scheme."
+        f"statutory filings, operational parameters, and budgetary requests submitted in this proposal are true, authentic, and "
+        f"substantiated by our certified financial audits (including Form 10B/10BB and ITR-7 filings). No requested funds shall be "
+        f"duplicated across any other donor agency or governmental grant scheme."
     )
+    p_dec.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    p_dec.paragraph_format.line_spacing = 1.15
+    p_dec.paragraph_format.space_after = Pt(10)
 
     doc.add_heading("Designated Bank Account for Grant Disbursement", level=2)
     bt = doc.add_table(rows=3, cols=2)
     bt.alignment = WD_TABLE_ALIGNMENT.CENTER
+    _set_table_borders(bt, color="334155")
     bdata = [
         ("Bank Name & Branch", "State Bank of India (Main Branch)"),
         ("Account Holder Name", ngo_name),
@@ -1048,53 +1226,85 @@ def generate_proposal_docx(
     ]
     for r_i, (k, v) in enumerate(bdata):
         c0, c1 = bt.cell(r_i, 0), bt.cell(r_i, 1)
+        c0.width = Inches(2.2)
+        c1.width = Inches(4.6)
         c0.text = k
         c1.text = v
-        _set_cell_margins(c0)
-        _set_cell_margins(c1)
-        _set_cell_background(c0, "0F2F64")
-        c0.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
-        c0.paragraphs[0].runs[0].bold = True
-        _set_cell_background(c1, "F8FAFC")
+        _set_cell_margins(c0, top=80, bottom=80, left=120, right=120)
+        _set_cell_margins(c1, top=80, bottom=80, left=120, right=120)
+        _set_cell_background(c0, "F1F5F9")
+        _set_cell_background(c1, "FFFFFF")
+
+        p0 = c0.paragraphs[0]
+        for r in p0.runs:
+            r.font.name = "Times New Roman"
+            r.font.size = Pt(9.5)
+            r.bold = True
+            r.font.color.rgb = RGBColor(15, 23, 42)
+
+        p1 = c1.paragraphs[0]
+        for r in p1.runs:
+            r.font.name = "Times New Roman"
+            r.font.size = Pt(9.5)
+            r.font.color.rgb = RGBColor(15, 23, 42)
 
     doc.add_paragraph()  # spacer
 
-    # Signatory block
+    # Signatory Block
     stbl = doc.add_table(rows=2, cols=2)
     stbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+    _set_table_borders(stbl, color="334155")
+    stbl.cell(0, 0).width = Inches(3.4)
+    stbl.cell(0, 1).width = Inches(3.4)
+    stbl.cell(1, 0).width = Inches(3.4)
+    stbl.cell(1, 1).width = Inches(3.4)
+
     stbl.cell(0, 0).text = "AUTHORIZED SIGNATORY"
-    stbl.cell(0, 1).text = "GRANTSETU VERIFICATION SEAL"
-    _set_cell_background(stbl.cell(0, 0), "0F2F64")
-    _set_cell_background(stbl.cell(0, 1), "0F2F64")
-    stbl.cell(0, 0).paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
-    stbl.cell(0, 0).paragraphs[0].runs[0].bold = True
-    stbl.cell(0, 1).paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
-    stbl.cell(0, 1).paragraphs[0].runs[0].bold = True
+    stbl.cell(0, 1).text = "GRANTSETU MULTI-AGENT VERIFICATION SEAL"
+    _set_cell_background(stbl.cell(0, 0), "0F172A")
+    _set_cell_background(stbl.cell(0, 1), "0F172A")
+    _set_cell_margins(stbl.cell(0, 0), top=80, bottom=80, left=120, right=120)
+    _set_cell_margins(stbl.cell(0, 1), top=80, bottom=80, left=120, right=120)
+
+    for c in (stbl.cell(0, 0), stbl.cell(0, 1)):
+        p = c.paragraphs[0]
+        for r in p.runs:
+            r.font.name = "Times New Roman"
+            r.font.size = Pt(9.5)
+            r.font.color.rgb = RGBColor(255, 255, 255)
+            r.bold = True
 
     sig_cell = stbl.cell(1, 0)
     seal_cell = stbl.cell(1, 1)
     _set_cell_background(sig_cell, "F8FAFC")
-    _set_cell_background(seal_cell, "ECFDF5")
-    _set_cell_margins(sig_cell)
-    _set_cell_margins(seal_cell)
+    _set_cell_background(seal_cell, "F8FAFC")
+    _set_cell_margins(sig_cell, top=100, bottom=100, left=140, right=140)
+    _set_cell_margins(seal_cell, top=100, bottom=100, left=140, right=140)
 
     sig_p = sig_cell.paragraphs[0]
-    sig_data = assets.get("signature")
+    sig_p.paragraph_format.line_spacing = 1.15
     if sig_data:
         try:
-            sig_p.add_run().add_picture(io.BytesIO(sig_data), width=Inches(1.8))
+            sig_p.add_run().add_picture(io.BytesIO(sig_data), width=Inches(1.6))
             sig_p.add_run("\n")
         except Exception:
             pass
-    sig_p.add_run(f"Authorized Signatory & Managing Trustee\n{ngo_name}\nOfficial Seal Attached")
+    r_sig = sig_p.add_run(f"Authorized Signatory & Managing Trustee\n{ngo_name}\nOfficial Seal Attached")
+    r_sig.font.name = "Times New Roman"
+    r_sig.font.size = Pt(9.5)
+    r_sig.font.color.rgb = RGBColor(15, 23, 42)
 
     seal_p = seal_cell.paragraphs[0]
-    seal_p.add_run(
-        f"Verified via GrantSetu MAS\n"
+    seal_p.paragraph_format.line_spacing = 1.15
+    r_seal = seal_p.add_run(
+        f"Verified via GrantSetu Multi-Agent System\n"
         f"Grounding Audit: Certified\n"
-        f"Ref: GS/2026/PROP-{proposal_id[:8].upper() if proposal_id else 'OK'}\n"
-        f"Date: {today_str}"
+        f"Ref: {ref_no}\n"
+        f"Certified Date: {today_str}"
     )
+    r_seal.font.name = "Times New Roman"
+    r_seal.font.size = Pt(9.5)
+    r_seal.font.color.rgb = RGBColor(15, 23, 42)
 
     doc.save(str(output_path))
     return output_path
