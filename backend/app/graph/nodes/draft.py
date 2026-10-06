@@ -185,27 +185,27 @@ DEFAULT_SECTIONS: list[str] = [
 ]
 
 SECTION_TITLES: dict[str, str] = {
-    "executive_summary": "Executive Summary",
-    "organisation_background": "Organisational Background",
-    "problem_statement": "Statement of Need",
-    "goals_and_objectives": "Goals and Objectives",
-    "proposed_intervention": "Proposed Intervention",
+    "executive_summary": "Executive Summary & Project Overview",
+    "organisation_background": "Organizational Background & Track Record",
+    "problem_statement": "Problem Statement & Needs Assessment",
+    "goals_and_objectives": "Goals and Measurable Objectives",
+    "proposed_intervention": "Proposed Interventions & Core Methodology",
     "implementation_plan": "Implementation Plan",
-    "implementation_timeline": "Implementation Schedule",
-    "activity_and_impact_matrix": "Activity & Impact Matrix",
-    "line_item_budget": "Itemized Budget",
-    "monitoring_and_evaluation": "Monitoring and Evaluation Plan",
-    "budget": "Budget",
-    "sustainability": "Sustainability Plan",
-    "sustainability_and_governance": "Sustainability & Governance",
-    "project_overview": "Project Summary & CSR Mandate",
-    "baseline_needs_assessment": "Baseline Needs Assessment",
-    "intervention_and_logframe": "Logframe & Deliverables",
-    "csr_budget_and_milestones": "CSR Budget & Milestones",
-    "governance_and_audit": "Governance & Social Audit",
+    "implementation_timeline": "Implementation Plan & Milestone Schedule",
+    "activity_and_impact_matrix": "Activity & Measurable Impact Matrix",
+    "line_item_budget": "Itemized Project Budget & Resource Allocation",
+    "monitoring_and_evaluation": "Monitoring, Evaluation & Learning (MEL) Framework",
+    "budget": "Itemized Project Budget & Resource Allocation",
+    "sustainability": "Sustainability & Governance",
+    "sustainability_and_governance": "Sustainability, Governance & Institutional Capacity",
+    "project_overview": "Project Summary & CSR Mandate Alignment",
+    "baseline_needs_assessment": "Baseline Needs Assessment & Beneficiary Profile",
+    "intervention_and_logframe": "Logframe & Program Deliverables",
+    "csr_budget_and_milestones": "CSR Budget & Milestone Tranches",
+    "governance_and_audit": "Governance, Reporting & Social Audit",
     "scheme_convergence": "Scheme Convergence & Darpan Compliance",
     "project_location_and_demographics": "Project Location & Demographics",
-    "technical_methodology": "Technical Methodology",
+    "technical_methodology": "Technical Methodology & Service Delivery Plan",
     "gia_itemized_financials": "Grants-in-Aid Financial Proposal",
     "inspection_and_outcomes": "Inspection Framework & UC Compliance",
 }
@@ -293,14 +293,14 @@ def _retrieve_past_proposal_exemplar(ngo_id: str) -> str:
     try:
         rows = pool.fetch_all(
             """
-            select c.chunk_text, d.filename, d.doc_type
+            select c.chunk_text, d.file_url, d.doc_type
             from document_chunks c
             join ngo_documents d on d.id = c.document_id
             where c.ngo_id = %s
               and (
                   d.doc_type in ('past_proposal', 'annual_report', 'project_plan')
-                  or d.filename ilike '%proposal%'
-                  or d.filename ilike '%logframe%'
+                  or d.file_url ilike '%%proposal%%'
+                  or d.file_url ilike '%%logframe%%'
               )
             order by c.chunk_index asc
             limit 3

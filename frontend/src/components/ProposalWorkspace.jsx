@@ -381,17 +381,58 @@ export default function ProposalWorkspace({
     return <FileText className="w-4 h-4 text-slate-600" />
   }
 
-  // Enhanced Markdown & Table Renderer
-  const renderFormattedMarkdown = (content) => {
+  const SECTION_TITLES = {
+    executive_summary: 'Executive Summary & Project Overview',
+    organisation_background: 'Organizational Background & Track Record',
+    problem_statement: 'Problem Statement & Needs Assessment',
+    goals_and_objectives: 'Goals and Measurable Objectives',
+    proposed_intervention: 'Proposed Interventions & Core Methodology',
+    implementation_plan: 'Implementation Plan',
+    implementation_timeline: 'Implementation Plan & Milestone Schedule',
+    activity_and_impact_matrix: 'Activity & Measurable Impact Matrix',
+    line_item_budget: 'Itemized Project Budget & Resource Allocation',
+    monitoring_and_evaluation: 'Monitoring, Evaluation & Learning (MEL) Framework',
+    budget: 'Itemized Project Budget & Resource Allocation',
+    sustainability: 'Sustainability, Governance & Institutional Capacity',
+    sustainability_and_governance: 'Sustainability, Governance & Institutional Capacity',
+    project_overview: 'Project Summary & CSR Mandate Alignment',
+    baseline_needs_assessment: 'Baseline Needs Assessment & Beneficiary Profile',
+    intervention_and_logframe: 'Logframe & Program Deliverables',
+    csr_budget_and_milestones: 'CSR Budget & Milestone Tranches',
+    governance_and_audit: 'Governance, Reporting & Social Audit',
+    scheme_convergence: 'Scheme Convergence & Darpan Compliance',
+    project_location_and_demographics: 'Project Location & Demographics',
+    technical_methodology: 'Technical Methodology & Service Delivery Plan',
+    gia_itemized_financials: 'Grants-in-Aid Financial Proposal',
+    inspection_and_outcomes: 'Inspection Framework & UC Compliance',
+  }
+
+  // Enhanced Markdown & Table Renderer with Institutional Section Adapters
+  const renderFormattedMarkdown = (content, sectionKey = '') => {
     if (!content) return null
 
+    const parseInline = (text) => {
+      if (!text) return ''
+      const parts = text.split(/(\*\*.*?\*\*)/g)
+      return parts.map((p, idx) => {
+        if (p.startsWith('**') && p.endsWith('**')) {
+          return (
+            <strong key={idx} className="font-semibold text-slate-900">
+              {p.slice(2, -2)}
+            </strong>
+          )
+        }
+        return p
+      })
+    }
+
     // Split content into blocks by double newline or table boundaries
-    const lines = content.split('\n')
+    const rawLines = content.split('\n')
     const blocks = []
     let currentTable = []
     let currentTextLines = []
 
-    lines.forEach((line) => {
+    rawLines.forEach((line) => {
       const trimmed = line.trim()
       if (trimmed.startsWith('|')) {
         if (currentTextLines.length > 0) {
@@ -415,48 +456,194 @@ export default function ProposalWorkspace({
       blocks.push({ type: 'text', lines: [...currentTextLines] })
     }
 
-    const parseInline = (text) => {
-      if (!text) return ''
-      // Replace bold **text**
-      const parts = text.split(/(\*\*.*?\*\*)/g)
-      return parts.map((p, idx) => {
-        if (p.startsWith('**') && p.endsWith('**')) {
-          return (
-            <strong key={idx} className="font-semibold text-slate-900">
-              {p.slice(2, -2)}
-            </strong>
+    // 1. Executive Summary: Extract "Project at a Glance" fields
+    const glanceItems = []
+    if (sectionKey === 'executive_summary') {
+      rawLines.forEach((l) => {
+        const t = l.trim()
+        if (
+          t.includes(':') &&
+          /^(project name|target center|location|primary beneficiary|beneficiary group|funding ask|total funding ask|expected transformative outcomes)/i.test(
+            t.replace(/[*#-]/g, '').trim()
           )
+        ) {
+          const parts = t.replace(/[*#]/g, '').split(':', 2)
+          if (parts.length === 2 && parts[1].trim()) {
+            glanceItems.push({
+              label: parts[0].replace(/^[-]/, '').trim(),
+              value: parts[1].trim(),
+            })
+          }
         }
-        // Highlight currency amounts (e.g. ₹7,92,540)
-        const subparts = p.split(/(₹[\d,]+(?:\.\d{2})?)/g)
-        if (subparts.length > 1) {
-          return subparts.map((sp, sidx) => {
-            if (sp.startsWith('₹')) {
-              return (
-                <span
-                  key={sidx}
-                  className="font-semibold text-emerald-800 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200/50 text-[11px]"
-                >
-                  {sp}
-                </span>
-              )
-            }
-            return sp
-          })
+      })
+    }
+
+    // 2. Organization Background: Extract statutory credentials
+    const statutoryBadges = []
+    if (sectionKey === 'organisation_background') {
+      rawLines.forEach((l) => {
+        const t = l.trim()
+        if (
+          t.includes(':') &&
+          /^(niti aayog darpan|trust registration|tax exemption|fcra status|financial discipline|audited by)/i.test(
+            t.replace(/[*#-]/g, '').trim()
+          )
+        ) {
+          const parts = t.replace(/[*#]/g, '').split(':', 2)
+          if (parts.length === 2 && parts[1].trim()) {
+            statutoryBadges.push({
+              label: parts[0].replace(/^[-]/, '').trim(),
+              value: parts[1].trim(),
+            })
+          }
         }
-        return p
       })
     }
 
     return (
-      <div className="space-y-3 font-sans text-xs text-slate-700 leading-relaxed">
+      <div className="space-y-4 font-sans text-xs text-slate-700 leading-relaxed">
+        {/* Section Adapter 1: Executive Summary "Project at a Glance" */}
+        {sectionKey === 'executive_summary' && glanceItems.length >= 2 && (
+          <div className="mb-6 rounded-lg border border-slate-300 bg-slate-50/70 p-4.5 print:bg-slate-50 keep-together shadow-2xs">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-3">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5 font-sans">
+                <FileCheck2 className="w-3.5 h-3.5 text-indigo-900" />
+                Project at a Glance (Executive Summary)
+              </span>
+              <span className="text-[10px] font-mono text-slate-500 uppercase">Reviewer Brief</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
+              {glanceItems.map((item, i) => (
+                <div key={i} className="border-b border-slate-200/60 pb-2.5 last:border-b-0">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                    {item.label}
+                  </span>
+                  <span className="font-semibold text-slate-900 leading-snug block mt-0.5">
+                    {parseInline(item.value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Section Adapter 2: Organisation Background Statutory Grid */}
+        {sectionKey === 'organisation_background' && statutoryBadges.length >= 2 && (
+          <div className="mb-6 rounded-lg border border-slate-300 bg-white p-4.5 keep-together shadow-2xs">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-3">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+                Statutory & Compliance Credentials
+              </span>
+              <span className="text-[10px] font-mono text-emerald-700 font-semibold uppercase">
+                Verified Active
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
+              {statutoryBadges.map((item, i) => (
+                <div key={i} className="bg-slate-50 rounded border border-slate-200 p-2.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block truncate">
+                    {item.label}
+                  </span>
+                  <span className="font-semibold text-slate-900 block mt-0.5 text-[11px]">
+                    {parseInline(item.value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Section Adapter 3: Proposed Intervention Sequential Flow */}
+        {sectionKey === 'proposed_intervention' && (
+          <div className="mb-6 rounded-lg border border-slate-300 bg-slate-50/80 p-3.5 keep-together shadow-2xs">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-600 block mb-2">
+              Sequential Process Flow: Problem → Intervention → Activities → Outputs → Outcomes
+            </span>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="px-2.5 py-1 rounded bg-white border border-slate-300 font-semibold text-slate-800 shadow-2xs">
+                1. Needs Assessment
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="px-2.5 py-1 rounded bg-white border border-slate-300 font-semibold text-slate-800 shadow-2xs">
+                2. Village Mobilization
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="px-2.5 py-1 rounded bg-white border border-slate-300 font-semibold text-slate-800 shadow-2xs">
+                3. Portal Documentation
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="px-2.5 py-1 rounded bg-white border border-slate-300 font-semibold text-slate-800 shadow-2xs">
+                4. Bank Credit Camps
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="px-2.5 py-1 rounded bg-indigo-950 text-white font-semibold shadow-2xs">
+                5. Sustainable Outcomes
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Section Adapter 4: Activity & Impact Matrix KPI Highlight Strip */}
+        {sectionKey === 'activity_and_impact_matrix' && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 keep-together">
+            <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 text-center shadow-2xs">
+              <span className="text-[10px] uppercase font-bold text-slate-500 block">Outreach Cohort</span>
+              <span className="text-base font-black text-slate-900 font-mono">15,000+</span>
+              <span className="text-[10px] text-slate-500 block mt-0.5">Agrarian Families</span>
+            </div>
+            <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 text-center shadow-2xs">
+              <span className="text-[10px] uppercase font-bold text-slate-500 block">Portal Registrations</span>
+              <span className="text-base font-black text-slate-900 font-mono">1,200</span>
+              <span className="text-[10px] text-slate-500 block mt-0.5">Viable Applications</span>
+            </div>
+            <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 text-center shadow-2xs">
+              <span className="text-[10px] uppercase font-bold text-slate-500 block">Pump Sets Solarized</span>
+              <span className="text-base font-black text-slate-900 font-mono">500</span>
+              <span className="text-[10px] text-slate-500 block mt-0.5">Diesel Transition</span>
+            </div>
+            <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 text-center shadow-2xs">
+              <span className="text-[10px] uppercase font-bold text-slate-500 block">Net Income Surge</span>
+              <span className="text-base font-black text-emerald-700 font-mono">+30%</span>
+              <span className="text-[10px] text-emerald-600 block mt-0.5 font-semibold">Annual Farmer Savings</span>
+            </div>
+          </div>
+        )}
+
+        {/* Section Adapter 5: Line Item Budget Allocation Summary */}
+        {(sectionKey === 'line_item_budget' || sectionKey === 'budget') && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 keep-together">
+            <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 shadow-2xs">
+              <span className="text-[10px] uppercase font-bold text-slate-500 block">Tier 1: Personnel</span>
+              <span className="text-xs font-bold text-slate-900 block mt-1">HR & Engineers</span>
+              <span className="text-[10px] text-slate-500 block">Monthly Honoraria</span>
+            </div>
+            <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 shadow-2xs">
+              <span className="text-[10px] uppercase font-bold text-slate-500 block">Tier 2: Direct Ops</span>
+              <span className="text-xs font-bold text-slate-900 block mt-1">Farmer Camps & IEC</span>
+              <span className="text-[10px] text-slate-500 block">Outreach Venues</span>
+            </div>
+            <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 shadow-2xs">
+              <span className="text-[10px] uppercase font-bold text-slate-500 block">Tier 3: M&E & Audit</span>
+              <span className="text-xs font-bold text-slate-900 block mt-1">Surveys & CA Audit</span>
+              <span className="text-[10px] text-slate-500 block">Statutory Compliance</span>
+            </div>
+            <div className="rounded-lg border border-slate-900 bg-slate-900 text-white p-3 shadow-2xs">
+              <span className="text-[10px] uppercase font-bold text-slate-300 block">Total Budget Ask</span>
+              <span className="text-sm font-black font-mono block mt-1">INR 35,00,000</span>
+              <span className="text-[10px] text-emerald-400 block font-medium">100% Itemized</span>
+            </div>
+          </div>
+        )}
+
+        {/* Render markdown blocks */}
         {blocks.map((block, bIdx) => {
           if (block.type === 'table') {
             const tableLines = block.lines
             return (
               <div
                 key={bIdx}
-                className="my-3 overflow-x-auto rounded-xl border border-slate-200 shadow-2xs bg-white"
+                className="my-3 overflow-x-auto rounded-lg border border-slate-300 shadow-2xs bg-white"
               >
                 <table className="min-w-full divide-y divide-slate-200 text-xs text-left">
                   <tbody className="divide-y divide-slate-100">
@@ -472,27 +659,37 @@ export default function ProposalWorkspace({
                         (tableLines[rIdx + 1] &&
                           /^\|[-:\s|]+\|$/.test(tableLines[rIdx + 1]))
 
+                      const isTotalRow = cols.some((c) => /grand total|total\s*(ask|amount)?/i.test(c))
+                      const isTierSubhead = cols.some((c) => /tier\s+[123]/i.test(c))
+
                       return (
                         <tr
                           key={rIdx}
                           className={
                             isHeader
-                              ? 'bg-slate-100 font-bold text-slate-900'
-                              : 'even:bg-slate-50/50 hover:bg-indigo-50/20 transition-colors'
+                              ? 'bg-slate-900 font-bold text-white'
+                              : isTotalRow
+                                ? 'bg-slate-900 font-bold text-white'
+                                : isTierSubhead
+                                  ? 'bg-slate-100 font-bold text-slate-900'
+                                  : 'even:bg-slate-50/60 hover:bg-slate-50 transition-colors'
                           }
                         >
-                          {cols.map((col, cIdx) => (
-                            <td
-                              key={cIdx}
-                              className={`px-3.5 py-2.5 border-r border-slate-100 last:border-r-0 ${isHeader ? 'text-slate-900 font-bold' : 'text-slate-800'
-                                } ${col.startsWith('₹') || /^\d+$/.test(col)
-                                  ? 'text-right font-mono'
-                                  : ''
-                                }`}
-                            >
-                              {parseInline(col)}
-                            </td>
-                          ))}
+                          {cols.map((col, cIdx) => {
+                            const isNumeric = col.startsWith('₹') || col.startsWith('INR') || /^\d[\d,\.]*$/.test(col.trim())
+                            return (
+                              <td
+                                key={cIdx}
+                                className={`px-3 py-2 border-r border-slate-200 last:border-r-0 ${
+                                  isHeader || isTotalRow
+                                    ? 'text-white font-bold'
+                                    : 'text-slate-800'
+                                } ${isNumeric ? 'text-right font-mono' : ''}`}
+                              >
+                                {parseInline(col)}
+                              </td>
+                            )
+                          })}
                         </tr>
                       )
                     })}
@@ -504,7 +701,7 @@ export default function ProposalWorkspace({
 
           // Render text block with headings and lists
           return (
-            <div key={bIdx} className="space-y-2">
+            <div key={bIdx} className="space-y-2.5">
               {block.lines.map((line, lIdx) => {
                 const trimmed = line.trim()
                 if (!trimmed) return <div key={lIdx} className="h-1" />
@@ -522,7 +719,7 @@ export default function ProposalWorkspace({
                       key={lIdx}
                       className="text-sm font-bold text-slate-900 mt-3 mb-1.5 flex items-center gap-1.5"
                     >
-                      <span className="size-1.5 rounded-full bg-indigo-600 inline-block" />
+                      <span className="size-1.5 rounded-full bg-slate-800 inline-block" />
                       {parseInline(trimmed.slice(4))}
                     </h4>
                   )
@@ -531,16 +728,41 @@ export default function ProposalWorkspace({
                   return (
                     <h3
                       key={lIdx}
-                      className="text-base font-bold text-slate-900 mt-4 mb-2 pb-1 border-b border-slate-200"
+                      className="text-sm font-bold text-slate-900 uppercase tracking-wider mt-4 mb-2 pb-1 border-b border-slate-200"
                     >
                       {parseInline(trimmed.slice(3))}
                     </h3>
                   )
                 }
+
+                // Problem Statement Numbered Block Adapter
+                if (sectionKey === 'problem_statement' && /^\d+\.\s+\*\*/.test(trimmed)) {
+                  const numMatch = trimmed.match(/^(\d+)\.\s+\*\*(.+?)\*\*:\s*(.*)$/)
+                  if (numMatch) {
+                    const [, num, title, desc] = numMatch
+                    return (
+                      <div
+                        key={lIdx}
+                        className="rounded-lg border border-slate-200 bg-slate-50/60 p-3.5 my-2.5 keep-together space-y-1 shadow-2xs"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="flex size-5 items-center justify-center rounded bg-slate-800 text-white font-bold text-[10px]">
+                            {num}
+                          </span>
+                          <h5 className="font-bold text-slate-900 text-xs">{title}</h5>
+                        </div>
+                        <p className="text-slate-700 text-xs pl-7 leading-relaxed">
+                          {parseInline(desc)}
+                        </p>
+                      </div>
+                    )
+                  }
+                }
+
                 if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
                   return (
                     <div key={lIdx} className="flex items-start gap-2 pl-2">
-                      <span className="text-indigo-600 font-bold mt-0.5">•</span>
+                      <span className="text-slate-700 font-bold mt-0.5">•</span>
                       <p className="flex-1 text-slate-700">{parseInline(trimmed.slice(2))}</p>
                     </div>
                   )
@@ -576,7 +798,7 @@ export default function ProposalWorkspace({
         @media print {
           @page {
             size: A4;
-            margin: 14mm 12mm;
+            margin: 14mm 15mm 16mm 15mm;
           }
           body * {
             visibility: hidden !important;
@@ -594,30 +816,79 @@ export default function ProposalWorkspace({
             padding: 0 !important;
             background: #ffffff !important;
             color: #0f172a !important;
-            font-size: 10.5pt !important;
+            font-size: 10pt !important;
             border: none !important;
             box-shadow: none !important;
           }
+          .no-print {
+            display: none !important;
+          }
+          .print-running-header {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: 7mm !important;
+            border-bottom: 0.5pt solid #cbd5e1 !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            font-size: 8pt !important;
+            color: #64748b !important;
+            font-family: serif !important;
+            background: #ffffff !important;
+            z-index: 1000 !important;
+            padding-bottom: 1mm !important;
+          }
+          .print-running-footer {
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: 7mm !important;
+            border-top: 0.5pt solid #cbd5e1 !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            font-size: 8pt !important;
+            color: #64748b !important;
+            font-family: serif !important;
+            background: #ffffff !important;
+            z-index: 1000 !important;
+            padding-top: 1mm !important;
+          }
           .print-section {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
+            break-inside: auto !important;
+            page-break-inside: auto !important;
             margin-bottom: 16pt !important;
           }
+          h1, h2, h3, h4, .section-heading {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+          }
           table {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
+            break-inside: auto !important;
+            page-break-inside: auto !important;
             width: 100% !important;
             border-collapse: collapse !important;
           }
+          tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
           th, td {
-            border: 1px solid #cbd5e1 !important;
-            padding: 5pt 7pt !important;
-            font-size: 9pt !important;
+            border: 0.5pt solid #cbd5e1 !important;
+            padding: 4pt 6pt !important;
+            font-size: 8.5pt !important;
           }
           .signature-block {
-            page-break-inside: avoid !important;
             break-inside: avoid !important;
-            margin-top: 20pt !important;
+            page-break-inside: avoid !important;
+            margin-top: 18pt !important;
+          }
+          .keep-together {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
         }
       `}</style>
@@ -1090,11 +1361,30 @@ export default function ProposalWorkspace({
           {/* VIEW MODE 2: Full Formal Proposal Document (Filing Preview & Print-Ready PDF) */}
           <div
             id="printable-proposal-document"
-            className={`p-6 sm:p-10 max-w-4xl mx-auto space-y-12 ${viewMode === 'document' ? 'block' : 'hidden print:block'
+            className={`p-6 sm:p-10 max-w-4xl mx-auto space-y-12 relative ${viewMode === 'document' ? 'block' : 'hidden print:block'
               }`}
           >
+            {/* Running Header & Footer for Browser Print View */}
+            <div className="print-running-header hidden print:flex">
+              <span className="truncate max-w-[65%]">
+                {activeNgo?.name || 'Applicant Organization'} — {selectedGrant?.title || 'Grant Proposal'}
+              </span>
+              <span className="font-mono text-[9px] uppercase tracking-wider text-slate-500">
+                Official Submission Dossier
+              </span>
+            </div>
+
+            <div className="print-running-footer hidden print:flex">
+              <span className="truncate max-w-[70%]">
+                {activeNgo?.name || 'Applicant Organization'} | {selectedGrant?.title || 'Grant Proposal'} | Confidential
+              </span>
+              <span className="font-mono text-[9px] text-slate-500">
+                Official Filing Ref
+              </span>
+            </div>
+
             {/* 1. Formal Front Cover Page (Print Page 1) */}
-            <div className="proposal-cover-page bg-gradient-to-b from-slate-50 via-white to-slate-50 border-2 border-indigo-950/80 rounded-2xl p-8 sm:p-12 shadow-sm min-h-[850px] flex flex-col justify-between print:min-h-screen print:border-slate-800 print:shadow-none print:m-0 print:break-after-page">
+            <div className="proposal-cover-page bg-white border-2 border-slate-800 rounded-xl p-8 sm:p-12 shadow-sm min-h-[850px] flex flex-col justify-between print:min-h-screen print:border-slate-800 print:shadow-none print:m-0 print:break-after-page">
               <div>
                 {/* Top Institutional Crest / Logo */}
                 <div className="flex items-center justify-between border-b border-slate-200 pb-6 mb-8">
@@ -1106,7 +1396,7 @@ export default function ProposalWorkspace({
                     />
                   ) : (
                     <div className="flex items-center gap-2">
-                      <div className="size-12 rounded-xl bg-indigo-900 text-white flex items-center justify-center font-black text-xl shadow-xs">
+                      <div className="size-12 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-xl shadow-xs">
                         {activeNgo?.name?.charAt(0) || 'G'}
                       </div>
                       <div>
@@ -1121,7 +1411,7 @@ export default function ProposalWorkspace({
                   )}
 
                   <div className="text-right">
-                    <span className="inline-block px-3 py-1 bg-indigo-950 text-white font-mono text-[10px] font-bold uppercase rounded-md tracking-wider">
+                    <span className="inline-block px-3 py-1 bg-slate-900 text-white font-mono text-[10px] font-bold uppercase rounded-sm tracking-wider">
                       Official Dossier
                     </span>
                     <span className="text-[11px] text-slate-500 block font-mono mt-1">
@@ -1132,7 +1422,7 @@ export default function ProposalWorkspace({
 
                 {/* Hero Title Block */}
                 <div className="text-center py-6 sm:py-10 space-y-4">
-                  <span className="text-xs font-black tracking-widest text-indigo-700 uppercase px-3 py-1 bg-indigo-50 rounded-full border border-indigo-200/60 inline-block">
+                  <span className="text-[11px] font-bold tracking-widest text-slate-700 uppercase px-3 py-1 bg-slate-100 rounded-sm border border-slate-300 inline-block font-mono">
                     PROPOSAL FOR GRANT ASSISTANCE
                   </span>
                   <h1 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-tight max-w-2xl mx-auto">
@@ -1144,14 +1434,14 @@ export default function ProposalWorkspace({
                   </p>
                 </div>
 
-                <div className="w-24 h-1 bg-indigo-900 mx-auto rounded-full my-6" />
+                <div className="w-24 h-1 bg-slate-900 mx-auto rounded-full my-6" />
 
                 {/* Metadata Cards Grid (2x2) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
                   {/* Card 1: Submitted To */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
-                    <span className="text-[10px] font-black uppercase text-indigo-900 tracking-wider block mb-2">
-                      Submitted To
+                  <div className="bg-white rounded-lg border border-slate-300 p-4 shadow-2xs">
+                    <span className="text-[10px] font-black uppercase text-slate-900 tracking-wider block mb-2 font-mono">
+                      SUBMITTED TO:
                     </span>
                     <p className="text-sm font-bold text-slate-900 leading-snug">
                       {selectedGrant?.funder_name || 'Funding Agency'}
@@ -1165,9 +1455,9 @@ export default function ProposalWorkspace({
                   </div>
 
                   {/* Card 2: Submitted By */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
-                    <span className="text-[10px] font-black uppercase text-indigo-900 tracking-wider block mb-2">
-                      Submitted By
+                  <div className="bg-white rounded-lg border border-slate-300 p-4 shadow-2xs">
+                    <span className="text-[10px] font-black uppercase text-slate-900 tracking-wider block mb-2 font-mono">
+                      SUBMITTED BY:
                     </span>
                     <p className="text-sm font-bold text-slate-900 leading-snug">
                       {activeNgo?.name || 'Applicant Organization'}
@@ -1181,9 +1471,9 @@ export default function ProposalWorkspace({
                   </div>
 
                   {/* Card 3: Key Submission Credentials */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
-                    <span className="text-[10px] font-black uppercase text-indigo-900 tracking-wider block mb-2">
-                      Submission Credentials
+                  <div className="bg-white rounded-lg border border-slate-300 p-4 shadow-2xs">
+                    <span className="text-[10px] font-black uppercase text-slate-900 tracking-wider block mb-2 font-mono">
+                      SUBMISSION CREDENTIALS:
                     </span>
                     <p className="text-xs text-slate-700">
                       Document Tracking Ref:{' '}
@@ -1197,15 +1487,15 @@ export default function ProposalWorkspace({
                         {new Date().toLocaleDateString('en-IN', { dateStyle: 'long' })}
                       </strong>
                     </p>
-                    <p className="text-xs text-indigo-700 font-medium mt-1">
+                    <p className="text-xs text-slate-600 font-medium mt-1">
                       Grounding: Certified via GrantSetu Multi-Agent System
                     </p>
                   </div>
 
                   {/* Card 4: Project Summary Metrics */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
-                    <span className="text-[10px] font-black uppercase text-indigo-900 tracking-wider block mb-2">
-                      Project Framework
+                  <div className="bg-white rounded-lg border border-slate-300 p-4 shadow-2xs">
+                    <span className="text-[10px] font-black uppercase text-slate-900 tracking-wider block mb-2 font-mono">
+                      PROJECT FRAMEWORK:
                     </span>
                     <p className="text-xs text-slate-700">
                       Implementation Period: <strong className="text-slate-900">12–24 Months</strong>
@@ -1228,7 +1518,7 @@ export default function ProposalWorkspace({
             </div>
 
             {/* 2. Executive Transmittal Letter (Print Page 2) */}
-            <div className="proposal-transmittal-letter bg-white border border-slate-200 rounded-2xl p-8 sm:p-12 shadow-sm print:border-none print:shadow-none print:m-0 print:p-0 print:break-after-page">
+            <div className="proposal-transmittal-letter bg-white border border-slate-200 rounded-xl p-8 sm:p-12 shadow-sm print:border-none print:shadow-none print:m-0 print:p-0 print:break-after-page">
               <div className="border-b-2 border-slate-900 pb-4 mb-6 flex items-start justify-between">
                 <div>
                   <h2 className="text-xl font-black text-slate-900">{activeNgo?.name || 'Applicant Organization'}</h2>
@@ -1289,24 +1579,24 @@ export default function ProposalWorkspace({
             <div className="mb-10 space-y-6 print:break-after-page">
               {/* 4 KPI Highlight Tiles */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-center">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 text-center shadow-2xs">
                   <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Total Funding Ask</span>
-                  <span className="text-base font-black text-indigo-700">INR Budgeted</span>
+                  <span className="text-base font-black text-slate-900 font-mono">INR 35,00,000</span>
                   <span className="text-[10px] text-slate-500 block mt-0.5">3-Tier Unit Costs</span>
                 </div>
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-center">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 text-center shadow-2xs">
                   <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Target Reach</span>
-                  <span className="text-base font-black text-emerald-700">Demographic</span>
-                  <span className="text-[10px] text-slate-500 block mt-0.5">Quantified Cohorts</span>
+                  <span className="text-base font-black text-slate-900 font-mono">15,000+</span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5">Rural Households</span>
                 </div>
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-center">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 text-center shadow-2xs">
                   <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Implementation</span>
-                  <span className="text-base font-black text-amber-700">12–24 Mos</span>
+                  <span className="text-base font-black text-slate-900 font-mono">12–24 Mos</span>
                   <span className="text-[10px] text-slate-500 block mt-0.5">Phased Timeline</span>
                 </div>
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-center">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 text-center shadow-2xs">
                   <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Statutory Status</span>
-                  <span className="text-base font-black text-slate-800">12A & 80G</span>
+                  <span className="text-base font-black text-emerald-700">12A & 80G</span>
                   <span className="text-[10px] text-emerald-600 block mt-0.5 font-semibold">Active & Grounded</span>
                 </div>
               </div>
@@ -1316,51 +1606,58 @@ export default function ProposalWorkspace({
                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">
                   Table of Contents
                 </h3>
-                <div className="space-y-2 text-xs">
-                  {sectionKeys.map((key, idx) => (
-                    <div key={key} className="flex items-center justify-between text-slate-700">
-                      <span className="font-semibold text-slate-900">
-                        {idx + 1}. {key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
-                      </span>
-                      <span className="text-slate-400 font-mono text-[11px] truncate mx-2">
-                        . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
-                      </span>
-                      <span className="text-slate-500 font-mono text-[11px]">Section {idx + 1}</span>
-                    </div>
-                  ))}
-                  <div className="flex items-center justify-between text-slate-700 pt-1 border-t border-slate-100">
-                    <span className="font-semibold text-slate-900">
+                <div className="space-y-2.5 text-xs">
+                  {sectionKeys.map((key, idx) => {
+                    const fullTitle = SECTION_TITLES[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
+                    return (
+                      <div key={key} className="flex items-center justify-between text-slate-700">
+                        <span className="font-semibold text-slate-900 truncate">
+                          {idx + 1}. {fullTitle}
+                        </span>
+                        <span className="text-slate-300 font-mono text-[11px] truncate mx-3 grow text-center">
+                          . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+                        </span>
+                        <span className="text-slate-500 font-mono text-[11px] shrink-0 font-medium">
+                          Sec. {String(idx + 1).padStart(2, '0')}
+                        </span>
+                      </div>
+                    )
+                  })}
+                  <div className="flex items-center justify-between text-slate-700 pt-2 border-t border-slate-100">
+                    <span className="font-semibold text-slate-900 truncate">
                       {sectionKeys.length + 1}. Statutory Declarations, Banking Credentials & Sign-Off
                     </span>
-                    <span className="text-slate-400 font-mono text-[11px] truncate mx-2">
+                    <span className="text-slate-300 font-mono text-[11px] truncate mx-3 grow text-center">
                       . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
                     </span>
-                    <span className="text-slate-500 font-mono text-[11px]">Closing Page</span>
+                    <span className="text-slate-500 font-mono text-[11px] shrink-0 font-medium">
+                      Closing Page
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Continuous Presentation of All Proposal Sections */}
-            <div className="space-y-8 bg-white border border-slate-200 rounded-2xl p-8 sm:p-12 shadow-sm print:border-none print:shadow-none print:p-0">
+            <div className="space-y-8 bg-white border border-slate-200 rounded-xl p-8 sm:p-12 shadow-sm print:border-none print:shadow-none print:p-0">
               {sectionKeys.map((key, sIdx) => {
-                const title = key
+                const fullTitle = SECTION_TITLES[key] || key
                   .replace(/_/g, ' ')
                   .replace(/\b\w/g, (l) => l.toUpperCase())
                 const content = editableSections[key]
 
                 return (
                   <section key={key} className="print-section pb-8 border-b border-slate-100 last:border-b-0">
-                    <div className="flex items-center gap-2.5 mb-4">
-                      <span className="flex size-7 items-center justify-center rounded-lg bg-indigo-950 text-white font-bold text-xs shadow-2xs">
+                    <div className="flex items-center gap-2.5 mb-4 section-heading">
+                      <span className="flex size-7 items-center justify-center rounded bg-slate-900 text-white font-bold text-xs shadow-2xs">
                         {sIdx + 1}
                       </span>
                       <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
-                        {title}
+                        {fullTitle}
                       </h2>
                     </div>
                     <div className="pl-9">
-                      {renderFormattedMarkdown(content)}
+                      {renderFormattedMarkdown(content, key)}
                     </div>
                   </section>
                 )
@@ -1368,7 +1665,7 @@ export default function ProposalWorkspace({
             </div>
 
             {/* 4. Statutory End-Page, Bank Details & Dual-Signatory Block */}
-            <div className="signature-block bg-white border border-slate-200 rounded-2xl p-8 sm:p-12 shadow-sm space-y-6 print:border-none print:shadow-none print:p-0 print:break-before-page">
+            <div className="signature-block bg-white border border-slate-200 rounded-xl p-8 sm:p-12 shadow-sm space-y-6 print:border-none print:shadow-none print:p-0 print:break-before-page">
               <div>
                 <h2 className="text-base sm:text-lg font-black text-slate-900">
                   Statutory Declarations, Banking Credentials & Institutional Authorization

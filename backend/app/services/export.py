@@ -198,46 +198,62 @@ _DECLARATION = ParagraphStyle(
 )
 
 
-class _NumberedCanvas(canvas_mod.Canvas):
-    """Running header + 'Page X of Y' footer across pages."""
+def _make_numbered_canvas(ngo_name: str, grant_title: str):
+    """Factory creating NumberedCanvas with institutional header and footer."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._saved_page_states: list = []
+    class _InstitutionalNumberedCanvas(canvas_mod.Canvas):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._saved_page_states: list = []
 
-    def showPage(self):
-        self._saved_page_states.append(dict(self.__dict__))
-        self._startPage()
+        def showPage(self):
+            self._saved_page_states.append(dict(self.__dict__))
+            self._startPage()
 
-    def save(self):
-        total = len(self._saved_page_states)
-        for state in self._saved_page_states:
-            self.__dict__.update(state)
-            # Only draw running header and footer on page 2 onwards (skip cover page)
-            if self._pageNumber > 1:
-                self._draw_running_header()
-                self._draw_running_footer(self._pageNumber, total)
-            canvas_mod.Canvas.showPage(self)
-        canvas_mod.Canvas.save(self)
+        def save(self):
+            total = len(self._saved_page_states)
+            for state in self._saved_page_states:
+                self.__dict__.update(state)
+                # Only draw running header and footer on page 2 onwards (skip cover page)
+                if self._pageNumber > 1:
+                    self._draw_running_header()
+                    self._draw_running_footer(self._pageNumber, total)
+                canvas_mod.Canvas.showPage(self)
+            canvas_mod.Canvas.save(self)
 
-    def _draw_running_header(self) -> None:
-        self.saveState()
-        self.setFont(_SERIF_ITALIC, 8.5)
-        self.setFillColor(colors.HexColor("#718096"))
-        width, height = letter
-        self.drawString(1 * inch, height - 0.6 * inch, "GrantSetu Institutional Dossier — Official Submission")
-        self.setStrokeColor(colors.HexColor("#CBD5E1"))
-        self.setLineWidth(0.5)
-        self.line(1 * inch, height - 0.65 * inch, width - 1 * inch, height - 0.65 * inch)
-        self.restoreState()
+        def _draw_running_header(self) -> None:
+            self.saveState()
+            self.setFont(_SERIF_ITALIC, 8.5)
+            self.setFillColor(colors.HexColor("#64748B"))
+            width, height = letter
+            header_left = f"{ngo_name} — {grant_title}"
+            if len(header_left) > 70:
+                header_left = header_left[:67] + "..."
+            self.drawString(1 * inch, height - 0.55 * inch, header_left)
+            self.drawRightString(width - 1 * inch, height - 0.55 * inch, "Official Submission Dossier")
+            self.setStrokeColor(colors.HexColor("#CBD5E1"))
+            self.setLineWidth(0.5)
+            self.line(1 * inch, height - 0.60 * inch, width - 1 * inch, height - 0.60 * inch)
+            self.restoreState()
 
-    def _draw_running_footer(self, page_num: int, total: int) -> None:
-        self.saveState()
-        self.setFont(_SERIF, 9)
-        self.setFillColor(colors.HexColor("#64748B"))
-        width, _height = letter
-        self.drawCentredString(width / 2, 0.6 * inch, f"Page {page_num} of {total}")
-        self.restoreState()
+        def _draw_running_footer(self, page_num: int, total: int) -> None:
+            self.saveState()
+            self.setFont(_SERIF, 8.5)
+            self.setFillColor(colors.HexColor("#64748B"))
+            width, _height = letter
+            self.setStrokeColor(colors.HexColor("#CBD5E1"))
+            self.setLineWidth(0.5)
+            self.line(1 * inch, 0.65 * inch, width - 1 * inch, 0.65 * inch)
+            
+            # Format: "[NGO Name] | [Project Name] | Confidential | Page X of Y"
+            footer_left = f"{ngo_name} | {grant_title} | Confidential"
+            if len(footer_left) > 75:
+                footer_left = footer_left[:72] + "..."
+            self.drawString(1 * inch, 0.48 * inch, footer_left)
+            self.drawRightString(width - 1 * inch, 0.48 * inch, f"Page {page_num} of {total}")
+            self.restoreState()
+
+    return _InstitutionalNumberedCanvas
 
 
 # ---------------------------------------------------------------------------
@@ -492,10 +508,17 @@ def _parse_markdown_table_to_flowable(table_lines: list[str]) -> Table | None:
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
     ]
-    # Alternating row colors
+    # Highlight total rows and alternating rows
     for i in range(1, len(flowable_data)):
-        bg = _BG_LIGHT if i % 2 == 1 else colors.white
-        table_style.append(("BACKGROUND", (0, i), (-1, i), bg))
+        is_total_row = any("total" in c.lower() for c in cleaned_rows[i])
+        if is_total_row:
+            table_style.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor("#0F2F64")))
+            table_style.append(("LINEABOVE", (0, i), (-1, i), 1.2, _NAVY))
+            for cell_flow in flowable_data[i]:
+                cell_flow.style.textColor = colors.white
+        else:
+            bg = _BG_LIGHT if i % 2 == 1 else colors.white
+            table_style.append(("BACKGROUND", (0, i), (-1, i), bg))
 
     table.setStyle(TableStyle(table_style))
     return table
@@ -516,6 +539,38 @@ def _build_section_flowables(
         return flow
 
     lines = content.split("\n")
+
+    # For Executive Summary: Extract and render "Project at a Glance" summary table
+    if section_key == "executive_summary":
+        glance_rows = []
+        for line in lines:
+            t_line = line.strip()
+            if ":" in t_line and any(k in t_line.lower() for k in (
+                "project name:", "target center", "location:", "beneficiary",
+                "funding ask:", "duration:", "transformative outcomes:"
+            )):
+                parts = t_line.split(":", 1)
+                k_clean = parts[0].replace("**", "").replace("-", "").strip()
+                v_clean = _clean_markdown_for_reportlab(parts[1].strip())
+                glance_rows.append([
+                    Paragraph(f"<b>{k_clean}</b>", ParagraphStyle("GK", parent=_styles["Normal"], fontName=_SANS_BOLD, fontSize=8.5, textColor=_NAVY)),
+                    Paragraph(v_clean, ParagraphStyle("GV", parent=_styles["Normal"], fontName=_SERIF, fontSize=8.5, leading=11.5)),
+                ])
+        if glance_rows:
+            gt = Table(glance_rows, colWidths=[2.1 * inch, 4.4 * inch])
+            gt.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (0, -1), _BG_LIGHT),
+                ("GRID", (0, 0), (-1, -1), 0.5, _BORDER_COLOR),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ]))
+            flow.append(Paragraph("<b>Project at a Glance</b>", _H2))
+            flow.append(gt)
+            flow.append(Spacer(1, 0.12 * inch))
+
     idx = 0
     while idx < len(lines):
         line = lines[idx]
@@ -755,7 +810,11 @@ def generate_proposal_pdf(
     # 5. Statutory End-Page with Seal & Signature
     story.extend(_build_statutory_end_page(ngo_profile, grant, assets, proposal_id=proposal_id))
 
-    doc.build(story, canvasmaker=_NumberedCanvas)
+    canvas_cls = _make_numbered_canvas(
+        ngo_name=ngo_profile.get("name", "Applicant Organization"),
+        grant_title=grant.get("title", "Project Proposal"),
+    )
+    doc.build(story, canvasmaker=canvas_cls)
     return output_path
 
 
