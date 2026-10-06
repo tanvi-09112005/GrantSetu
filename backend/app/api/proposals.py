@@ -537,7 +537,8 @@ def export_pdf(
         """
         select p.id as proposal_id, p.sections,
                g.id as grant_id, g.title as grant_title, g.funder_name, g.funder_type, g.description as grant_desc,
-               n.id as ngo_id, n.name as ngo_name, n.mission as ngo_mission, n.darpan_id, n.location, n.tax_exemption, n.fcra_status
+               n.id as ngo_id, n.name as ngo_name, n.mission as ngo_mission, n.darpan_id, n.location,
+               n.reg_12a, n.reg_80g, n.has_12a, n.has_80g, n.has_fcra, n.fcra_status
         from proposals p
         join applications a on a.id = p.application_id
         join grants g on g.id = a.grant_id
@@ -549,14 +550,20 @@ def export_pdf(
     if not row:
         raise HTTPException(status_code=404, detail="Proposal not found")
 
+    tax_exemption = (
+        "12A & 80G Certified"
+        if (row.get("has_12a") or row.get("reg_12a") or row.get("has_80g") or row.get("reg_80g"))
+        else "Registered Non-Profit Entity"
+    )
+
     ngo_profile = {
         "id": str(row["ngo_id"]),
         "name": row["ngo_name"],
         "mission": row["ngo_mission"],
         "darpan_id": row["darpan_id"],
         "location": row["location"],
-        "tax_exemption": row["tax_exemption"],
-        "fcra_status": row["fcra_status"],
+        "tax_exemption": tax_exemption,
+        "fcra_status": row.get("fcra_status") or "Compliant",
     }
     grant = {
         "id": str(row["grant_id"]),
@@ -603,7 +610,8 @@ def export_docx(
         """
         select p.id as proposal_id, p.sections,
                g.id as grant_id, g.title as grant_title, g.funder_name, g.funder_type, g.description as grant_desc,
-               n.id as ngo_id, n.name as ngo_name, n.mission as ngo_mission, n.darpan_id, n.location, n.tax_exemption, n.fcra_status
+               n.id as ngo_id, n.name as ngo_name, n.mission as ngo_mission, n.darpan_id, n.location,
+               n.reg_12a, n.reg_80g, n.has_12a, n.has_80g, n.has_fcra, n.fcra_status
         from proposals p
         join applications a on a.id = p.application_id
         join grants g on g.id = a.grant_id
@@ -615,14 +623,20 @@ def export_docx(
     if not row:
         raise HTTPException(status_code=404, detail="Proposal not found")
 
+    tax_exemption = (
+        "12A & 80G Certified"
+        if (row.get("has_12a") or row.get("reg_12a") or row.get("has_80g") or row.get("reg_80g"))
+        else "Registered Non-Profit Entity"
+    )
+
     ngo_profile = {
         "id": str(row["ngo_id"]),
         "name": row["ngo_name"],
         "mission": row["ngo_mission"],
         "darpan_id": row["darpan_id"],
         "location": row["location"],
-        "tax_exemption": row["tax_exemption"],
-        "fcra_status": row["fcra_status"],
+        "tax_exemption": tax_exemption,
+        "fcra_status": row.get("fcra_status") or "Compliant",
     }
     grant = {
         "id": str(row["grant_id"]),
