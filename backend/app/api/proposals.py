@@ -17,11 +17,13 @@ from app.graph.nodes.draft import SECTION_TITLES, TEMPLATES, draft_proposal
 from app.graph.nodes.extract_claims import extract_claims
 from app.graph.nodes.verify import verify_claims
 from app.models.schemas import (
+    ApplySectionRevisionRequest,
     BatchGenerateRequest,
     ClaimVerdict,
     GenerateProposalRequest,
     ProposalResponse,
     RefineSectionRequest,
+    RefineSectionResponse,
     ReviseRequest,
 )
 from app.services.export import generate_proposal_docx, generate_proposal_pdf
@@ -85,7 +87,7 @@ def _fetch_verification_results(proposal_id: str) -> tuple[list[ClaimVerdict], f
     """Retrieve persisted verification results and calculate fabrication rate."""
     rows = pool.fetch_all(
         """
-        select claim_text, verdict, evidence_span, confidence
+        select section_key, claim_text, verdict, evidence_span, confidence
         from verification_results
         where proposal_id = %s
         order by created_at asc
@@ -96,6 +98,7 @@ def _fetch_verification_results(proposal_id: str) -> tuple[list[ClaimVerdict], f
         return [], 0.0
     verdicts = [
         ClaimVerdict(
+            section_key=r.get("section_key"),
             claim_text=r["claim_text"],
             verdict=r["verdict"],
             evidence_span=r.get("evidence_span"),
@@ -106,6 +109,60 @@ def _fetch_verification_results(proposal_id: str) -> tuple[list[ClaimVerdict], f
     unsupported = sum(1 for v in verdicts if v.verdict == "unsupported")
     rate = round(unsupported / len(verdicts), 3) if verdicts else 0.0
     return verdicts, rate
+
+
+def _verify_single_section_claims(
+    proposal_id: str,
+    section_key: str,
+    section_content: str,
+    ngo_id: str,
+    ngo_profile: dict,
+) -> tuple[list[ClaimVerdict], float]:
+    """Extract and verify claims for ONLY a single revised section to conserve LLM quota."""
+    try:
+        section_state = {
+            "ngo_id": ngo_id,
+            "draft_sections": {section_key: section_content},
+            "ngo_profile": ngo_profile,
+        }
+        claims_state = extract_claims(section_state)
+        claims = claims_state.get("claims", [])
+        for c in claims:
+            c["section"] = section_key
+            c["section_key"] = section_key
+
+        verify_state = verify_claims({
+            "ngo_id": ngo_id,
+            "claims": claims,
+            "ngo_profile": ngo_profile,
+        })
+        results = verify_state.get("verification_results", [])
+
+        # Delete existing audit rows for this specific section
+        pool.execute(
+            "delete from verification_results where proposal_id = %s and (section_key = %s or section_key is null)",
+            (proposal_id, section_key),
+        )
+
+        for r in results:
+            pool.execute(
+                """
+                insert into verification_results (proposal_id, section_key, claim_text, verdict, evidence_span, confidence, model_used)
+                values (%s, %s, %s, %s, %s, %s, 'gemini-3.6-flash')
+                """,
+                (proposal_id, section_key, r["claim_text"], r["verdict"], r.get("evidence_span"), r.get("confidence", 0.9)),
+            )
+
+        logger.info(
+            "Targeted section verification completed for proposal %s section %s: %d claims re-audited",
+            proposal_id,
+            section_key,
+            len(results),
+        )
+    except Exception as e:
+        logger.warning("Targeted section verification encountered error: %s", e)
+
+    return _fetch_verification_results(proposal_id)
 
 
 @router.get("/templates")
@@ -244,14 +301,15 @@ def generate(
         for r in results:
             pool.execute(
                 """
-                insert into verification_results (proposal_id, claim_text, verdict, evidence_span, confidence, model_used)
-                values (%s, %s, %s, %s, %s, 'gemini-3.5-flash')
+                insert into verification_results (proposal_id, section_key, claim_text, verdict, evidence_span, confidence, model_used)
+                values (%s, %s, %s, %s, %s, %s, 'gemini-3.5-flash')
                 """,
-                (proposal_id, r["claim_text"], r["verdict"], r.get("evidence_span"), r.get("confidence", 0.9)),
+                (proposal_id, r.get("section") or r.get("section_key"), r["claim_text"], r["verdict"], r.get("evidence_span"), r.get("confidence", 0.9)),
             )
 
         verdicts = [
             ClaimVerdict(
+                section_key=r.get("section") or r.get("section_key"),
                 claim_text=r["claim_text"],
                 verdict=r["verdict"],
                 evidence_span=r.get("evidence_span"),
@@ -404,10 +462,10 @@ def verify_proposal_claims(
     for r in results:
         pool.execute(
             """
-            insert into verification_results (proposal_id, claim_text, verdict, evidence_span, confidence, model_used)
-            values (%s, %s, %s, %s, %s, 'gemini-3.6-flash')
+            insert into verification_results (proposal_id, section_key, claim_text, verdict, evidence_span, confidence, model_used)
+            values (%s, %s, %s, %s, %s, %s, 'gemini-3.6-flash')
             """,
-            (proposal_id, r["claim_text"], r["verdict"], r.get("evidence_span"), r.get("confidence", 0.9)),
+            (proposal_id, r.get("section") or r.get("section_key"), r["claim_text"], r["verdict"], r.get("evidence_span"), r.get("confidence", 0.9)),
         )
 
     pool.execute(
@@ -417,6 +475,7 @@ def verify_proposal_claims(
 
     verdicts = [
         ClaimVerdict(
+            section_key=r.get("section") or r.get("section_key"),
             claim_text=r["claim_text"],
             verdict=r["verdict"],
             evidence_span=r.get("evidence_span"),
@@ -673,19 +732,20 @@ def export_docx(
     )
 
 
-@router.post("/{proposal_id}/refine-section", response_model=ProposalResponse)
+@router.post("/{proposal_id}/refine-section", response_model=ProposalResponse | RefineSectionResponse)
 def refine_section(
     proposal_id: str,
     payload: RefineSectionRequest,
     _user: dict | None = Depends(maybe_user),
-) -> ProposalResponse:
+) -> ProposalResponse | RefineSectionResponse:
     """Targeted refinement of a single proposal section using LLM instruction."""
     row = pool.fetch_one(
         """
         select p.id as proposal_id, p.application_id, p.version, p.sections, p.status,
                a.ngo_id, a.grant_id,
                g.title as grant_title, g.funder_name,
-               n.name as ngo_name, n.mission as ngo_mission
+               n.name as ngo_name, n.mission as ngo_mission,
+               n.darpan_id, n.registered_on, n.reg_12a, n.reg_80g, n.fcra_status, n.location
         from proposals p
         join applications a on a.id = p.application_id
         join grants g on g.id = a.grant_id
@@ -697,6 +757,12 @@ def refine_section(
     if not row:
         raise HTTPException(status_code=404, detail="Proposal not found")
 
+    row["tax_exemption"] = (
+        "12A & 80G Certified"
+        if (row.get("reg_12a") or row.get("reg_80g") or row.get("has_12a") or row.get("has_80g"))
+        else "Registered Non-Profit"
+    )
+
     sections = row["sections"]
     if isinstance(sections, str):
         try:
@@ -704,7 +770,7 @@ def refine_section(
         except Exception:
             sections = {}
 
-    current_text = sections.get(payload.section_key, "")
+    current_text = payload.current_content if payload.current_content is not None else sections.get(payload.section_key, "")
     section_title = SECTION_TITLES.get(payload.section_key, payload.section_key.replace("_", " ").title())
 
     prompt = f"""You are an elite institutional grant proposal writer in India.
@@ -737,17 +803,39 @@ Rules:
                 cleaned = cleaned[3:]
             if cleaned.endswith("```"):
                 cleaned = cleaned[:-3]
-            sections[payload.section_key] = cleaned.strip()
+            cleaned = cleaned.strip()
+        else:
+            cleaned = current_text
     except Exception as e:
         logger.error("Section refinement failed: %s", e)
         raise HTTPException(status_code=502, detail=f"Refinement failed: {e}")
 
+    # If preview_only is True, return candidate diff preview without persisting to DB
+    if payload.preview_only:
+        return RefineSectionResponse(
+            proposal_id=proposal_id,
+            section_key=payload.section_key,
+            original_text=current_text,
+            refined_text=cleaned,
+            instruction=payload.instruction,
+            proposal=None,
+        )
+
+    # Otherwise apply immediately and run targeted verification on only this section
+    sections[payload.section_key] = cleaned
+    new_version = int(row.get("version") or 1) + 1
     pool.execute(
-        "update proposals set sections = %s, updated_at = now() where id = %s",
-        (json.dumps(sections), proposal_id),
+        "update proposals set sections = %s, version = %s, updated_at = now() where id = %s",
+        (json.dumps(sections), new_version, proposal_id),
     )
 
-    verdicts, rate = _fetch_verification_results(proposal_id)
+    verdicts, rate = _verify_single_section_claims(
+        proposal_id=proposal_id,
+        section_key=payload.section_key,
+        section_content=cleaned,
+        ngo_id=str(row["ngo_id"]),
+        ngo_profile=row,
+    )
 
     return ProposalResponse(
         proposal_id=proposal_id,
@@ -758,6 +846,77 @@ Rules:
         sections=sections,
         verification_results=verdicts,
         fabrication_rate=rate,
-        revision_count=max(0, int(row.get("version") or 1) - 1),
+        revision_count=max(0, new_version - 1),
+        status="revised",
+    )
+
+
+@router.post("/{proposal_id}/apply-section-revision", response_model=ProposalResponse)
+def apply_section_revision(
+    proposal_id: str,
+    payload: ApplySectionRevisionRequest,
+    _user: dict | None = Depends(maybe_user),
+) -> ProposalResponse:
+    """Accept and apply a reviewed section revision with targeted re-verification."""
+    row = pool.fetch_one(
+        """
+        select p.id as proposal_id, p.application_id, p.version, p.sections, p.status,
+               a.ngo_id, a.grant_id,
+               g.title as grant_title, g.funder_name,
+               n.name as ngo_name, n.mission as ngo_mission,
+               n.darpan_id, n.registered_on, n.reg_12a, n.reg_80g, n.fcra_status, n.location
+        from proposals p
+        join applications a on a.id = p.application_id
+        join grants g on g.id = a.grant_id
+        join ngo_profiles n on n.id = a.ngo_id
+        where p.id = %s
+        """,
+        (proposal_id,),
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+
+    row["tax_exemption"] = (
+        "12A & 80G Certified"
+        if (row.get("reg_12a") or row.get("reg_80g") or row.get("has_12a") or row.get("has_80g"))
+        else "Registered Non-Profit"
+    )
+
+    sections = row["sections"]
+    if isinstance(sections, str):
+        try:
+            sections = json.loads(sections)
+        except Exception:
+            sections = {}
+
+    sections[payload.section_key] = payload.refined_text
+    new_version = int(row.get("version") or 1) + 1
+
+    pool.execute(
+        "update proposals set sections = %s, version = %s, updated_at = now() where id = %s",
+        (json.dumps(sections), new_version, proposal_id),
+    )
+
+    if payload.rerun_verification:
+        verdicts, rate = _verify_single_section_claims(
+            proposal_id=proposal_id,
+            section_key=payload.section_key,
+            section_content=payload.refined_text,
+            ngo_id=str(row["ngo_id"]),
+            ngo_profile=row,
+        )
+    else:
+        verdicts, rate = _fetch_verification_results(proposal_id)
+
+    return ProposalResponse(
+        proposal_id=proposal_id,
+        application_id=str(row["application_id"]),
+        grant_id=str(row["grant_id"]),
+        ngo_id=str(row["ngo_id"]),
+        template_type="standard",
+        sections=sections,
+        verification_results=verdicts,
+        fabrication_rate=rate,
+        revision_count=max(0, new_version - 1),
         status="revised",
     )

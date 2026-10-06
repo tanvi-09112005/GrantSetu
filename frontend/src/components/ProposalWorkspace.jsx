@@ -39,8 +39,8 @@ import {
   listAssets,
   exportProposalPdf,
   exportProposalDocx,
-  refineSection,
 } from '../lib/api'
+import SectionInlineRevision from './SectionInlineRevision'
 
 export default function ProposalWorkspace({
   activeNgo,
@@ -341,23 +341,15 @@ export default function ProposalWorkspace({
     }
   }
 
-  const handleRefineSubmit = async () => {
-    if (!proposalData?.proposal_id || !activeSectionKey || !refineInstruction.trim()) return
-    setIsRefining(true)
-    setRefineError(null)
-    try {
-      const res = await refineSection(proposalData.proposal_id, activeSectionKey, refineInstruction.trim())
-      setProposalData(res)
-      setEditableSections(res.sections || {})
-      setVerificationResults(res.verification_results || [])
-      setFabricationRate(res.fabrication_rate || 0.0)
-      setRefineModalOpen(false)
-      setRefineInstruction('')
-    } catch (err) {
-      console.error('Refining section failed:', err)
-      setRefineError(err.response?.data?.detail || 'Failed to refine section. Please try again.')
-    } finally {
-      setIsRefining(false)
+  const handleRevisionApplied = (updatedProposal, key, newContent) => {
+    if (updatedProposal) {
+      setProposalData(updatedProposal)
+      setEditableSections(updatedProposal.sections || {})
+      setVerificationResults(updatedProposal.verification_results || [])
+      setFabricationRate(updatedProposal.fabrication_rate || 0.0)
+      setBatchProposals((prev) => ({ ...prev, [selectedGrantId]: updatedProposal }))
+    } else if (key && newContent !== undefined) {
+      setEditableSections((prev) => ({ ...prev, [key]: newContent }))
     }
   }
 
@@ -1236,18 +1228,37 @@ export default function ProposalWorkspace({
                       <button
                         type="button"
                         onClick={() => {
-                          setRefineInstruction('')
-                          setRefineError(null)
-                          setRefineModalOpen(true)
+                          setRefineModalOpen((prev) => !prev)
                         }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer shadow-2xs ${
+                          refineModalOpen
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200'
+                        }`}
                         title="Refine this specific section with targeted AI instructions"
                       >
-                        <Wand2 className="size-3.5 text-indigo-600" />
-                        Refine with AI
+                        <Wand2 className="size-3.5" />
+                        {refineModalOpen ? 'Hide AI Refiner' : 'Refine with AI'}
                       </button>
                     </div>
                   </div>
+
+                  {/* In-Place Interactive Revision Agent (Notion AI / Cursor style) */}
+                  {refineModalOpen && (
+                    <SectionInlineRevision
+                      proposalId={proposalData?.proposal_id}
+                      sectionKey={activeSectionKey}
+                      sectionTitle={
+                        SECTION_TITLES[activeSectionKey] ||
+                        activeSectionKey.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
+                      }
+                      currentContent={editableSections[activeSectionKey] || ''}
+                      onClose={() => setRefineModalOpen(false)}
+                      onRevisionApplied={handleRevisionApplied}
+                      ngoName={activeNgo?.name || 'Child Rights and You (CRY)'}
+                      grantTitle={selectedGrant?.title || 'Grant Opportunity'}
+                    />
+                  )}
 
                   {/* Enhanced Formatted Preview */}
                   <div className="space-y-4">
@@ -1920,107 +1931,6 @@ export default function ProposalWorkspace({
             <Sparkles className="w-4 h-4" />
             Generate Proposal for {activeNgo?.name || 'CRY'}
           </button>
-        </div>
-      )}
-      {/* Targeted Section Refinement Modal */}
-      {refineModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 no-print">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 animate-in fade-in zoom-in duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="size-8 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center">
-                  <Wand2 className="size-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Refine &quot;{activeSectionKey.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}&quot;
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Instruct Gemini to enhance this specific section.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setRefineModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-
-            <div className="py-4 space-y-3">
-              <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">
-                  Quick Improvement Presets:
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    'Break down into 3-tier unit costs with exact arithmetic',
-                    'Make tone more authoritative and rigorous',
-                    'Add measurable KPIs, cohort size and milestone targets',
-                    'Emphasize community governance and sustainability',
-                  ].map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => setRefineInstruction(preset)}
-                      className="text-[11px] px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 rounded-md transition text-slate-600 border border-slate-200/60 cursor-pointer"
-                    >
-                      + {preset}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">
-                  Custom Refinement Instruction:
-                </label>
-                <textarea
-                  rows={4}
-                  value={refineInstruction}
-                  onChange={(e) => setRefineInstruction(e.target.value)}
-                  placeholder="e.g. Expand on the solar pump installation workflow and specify monthly honorariums for field mobilizers..."
-                  className="w-full text-xs rounded-xl border border-slate-200 p-3 text-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-hidden bg-slate-50/50"
-                />
-              </div>
-
-              {refineError && (
-                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-1.5">
-                  <AlertCircle className="size-3.5 shrink-0" />
-                  <span>{refineError}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setRefineModalOpen(false)}
-                className="px-3 py-1.5 text-xs text-slate-600 hover:text-slate-800 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleRefineSubmit}
-                disabled={isRefining || !refineInstruction.trim()}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-xs transition cursor-pointer disabled:opacity-50"
-              >
-                {isRefining ? (
-                  <>
-                    <div className="size-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Refining Section...
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="size-3.5" />
-                    Apply AI Refinement
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>

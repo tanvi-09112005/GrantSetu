@@ -173,6 +173,7 @@ class BatchGenerateRequest(BaseModel):
 
 
 class ClaimVerdict(BaseModel):
+    section_key: str | None = None
     claim_text: str
     verdict: Literal["supported", "unsupported", "partially_supported"]
     evidence_span: str | None = None
@@ -205,7 +206,28 @@ class RefineSectionRequest(BaseModel):
 
     section_key: str
     instruction: str
+    current_content: str | None = None
     temperature: float = 0.2
+    preview_only: bool = False
+
+
+class RefineSectionResponse(BaseModel):
+    """Candidate refinement text for visual diff before user acceptance."""
+
+    proposal_id: str | None = None
+    section_key: str
+    original_text: str
+    refined_text: str
+    instruction: str
+    proposal: ProposalResponse | None = None
+
+
+class ApplySectionRevisionRequest(BaseModel):
+    """Accept and apply a reviewed section revision with targeted verification."""
+
+    section_key: str
+    refined_text: str
+    rerun_verification: bool = True
 
 
 # --- Applications ------------------------------------------------------------

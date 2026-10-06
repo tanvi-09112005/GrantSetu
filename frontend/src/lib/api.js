@@ -97,11 +97,20 @@ export const exportProposalPdf = (proposalId) =>
 export const exportProposalDocx = (proposalId) =>
   api.get(`/proposals/${proposalId}/export-docx`, { responseType: 'blob' }).then((r) => r.data)
 
-export const refineSection = (proposalId, sectionKey, instruction, temperature = 0.2) =>
+export const refineSection = (proposalId, sectionKey, instruction, currentContent = null, temperature = 0.2, previewOnly = true) =>
   api.post(`/proposals/${proposalId}/refine-section`, {
     section_key: sectionKey,
     instruction,
+    current_content: currentContent,
     temperature,
+    preview_only: previewOnly,
+  }).then((r) => r.data)
+
+export const applySectionRevision = (proposalId, sectionKey, refinedText, rerunVerification = true) =>
+  api.post(`/proposals/${proposalId}/apply-section-revision`, {
+    section_key: sectionKey,
+    refined_text: refinedText,
+    rerun_verification: rerunVerification,
   }).then((r) => r.data)
 
 
