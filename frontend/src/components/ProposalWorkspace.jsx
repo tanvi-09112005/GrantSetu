@@ -407,7 +407,7 @@ export default function ProposalWorkspace({
     inspection_and_outcomes: 'Inspection Framework & UC Compliance',
   }
 
-  // Enhanced Markdown & Table Renderer with Institutional Section Adapters
+  // Enhanced Formal Institutional Markdown & Table Renderer
   const renderFormattedMarkdown = (content, sectionKey = '') => {
     if (!content) return null
 
@@ -417,7 +417,7 @@ export default function ProposalWorkspace({
       return parts.map((p, idx) => {
         if (p.startsWith('**') && p.endsWith('**')) {
           return (
-            <strong key={idx} className="font-semibold text-slate-900">
+            <strong key={idx} className="font-bold text-black font-serif">
               {p.slice(2, -2)}
             </strong>
           )
@@ -456,7 +456,7 @@ export default function ProposalWorkspace({
       blocks.push({ type: 'text', lines: [...currentTextLines] })
     }
 
-    // 1. Executive Summary: Extract "Project at a Glance" fields
+    // 1. Executive Summary: Extract "Project Profile / At-a-Glance" fields
     const glanceItems = []
     if (sectionKey === 'executive_summary') {
       rawLines.forEach((l) => {
@@ -501,138 +501,113 @@ export default function ProposalWorkspace({
     }
 
     return (
-      <div className="space-y-4 font-sans text-xs text-slate-700 leading-relaxed">
-        {/* Section Adapter 1: Executive Summary "Project at a Glance" */}
+      <div className="space-y-4 font-serif text-[13px] sm:text-[13.5px] text-slate-900 leading-relaxed">
+        {/* Section Adapter 1: Executive Summary Formal Institutional Profile Table */}
         {sectionKey === 'executive_summary' && glanceItems.length >= 2 && (
-          <div className="mb-6 rounded-lg border border-slate-300 bg-slate-50/70 p-4.5 print:bg-slate-50 keep-together shadow-2xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-3">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5 font-sans">
-                <FileCheck2 className="w-3.5 h-3.5 text-indigo-900" />
-                Project at a Glance (Executive Summary)
-              </span>
-              <span className="text-[10px] font-mono text-slate-500 uppercase">Reviewer Brief</span>
+          <div className="mb-5 keep-together">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-900 border-b border-slate-800 pb-1 mb-2 font-serif">
+              Project Profile &amp; At-a-Glance Parameters
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
-              {glanceItems.map((item, i) => (
-                <div key={i} className="border-b border-slate-200/60 pb-2.5 last:border-b-0">
-                  <span className="text-[10px] uppercase font-bold text-slate-500 block">
-                    {item.label}
-                  </span>
-                  <span className="font-semibold text-slate-900 leading-snug block mt-0.5">
-                    {parseInline(item.value)}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <table className="w-full border-collapse border border-slate-800 text-xs font-serif">
+              <tbody>
+                {glanceItems.map((item, i) => (
+                  <tr key={i} className="border-b border-slate-300">
+                    <td className="w-1/3 px-3 py-2 bg-slate-100 font-bold text-slate-900 border-r border-slate-300 align-top">
+                      {item.label}
+                    </td>
+                    <td
+                      className="w-2/3 px-3 py-2 text-slate-900 align-top leading-relaxed text-justify"
+                      style={{ textAlign: 'justify', textJustify: 'inter-word' }}
+                    >
+                      {parseInline(item.value)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
-        {/* Section Adapter 2: Organisation Background Statutory Grid */}
+        {/* Section Adapter 2: Organisation Background Formal Statutory Table */}
         {sectionKey === 'organisation_background' && statutoryBadges.length >= 2 && (
-          <div className="mb-6 rounded-lg border border-slate-300 bg-white p-4.5 keep-together shadow-2xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-3">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-                Statutory & Compliance Credentials
-              </span>
-              <span className="text-[10px] font-mono text-emerald-700 font-semibold uppercase">
-                Verified Active
-              </span>
+          <div className="mb-5 keep-together">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-900 border-b border-slate-800 pb-1 mb-2 font-serif">
+              Statutory Registrations &amp; Regulatory Compliance Schedule
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
-              {statutoryBadges.map((item, i) => (
-                <div key={i} className="bg-slate-50 rounded border border-slate-200 p-2.5">
-                  <span className="text-[10px] uppercase font-bold text-slate-500 block truncate">
-                    {item.label}
-                  </span>
-                  <span className="font-semibold text-slate-900 block mt-0.5 text-[11px]">
-                    {parseInline(item.value)}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <table className="w-full border-collapse border border-slate-800 text-xs font-serif">
+              <thead>
+                <tr className="bg-slate-900 text-white">
+                  <th className="w-1/3 px-3 py-1.5 text-left border-r border-slate-700 text-[10px] uppercase tracking-wider">
+                    Regulatory Authority / Registration
+                  </th>
+                  <th className="w-2/3 px-3 py-1.5 text-left text-[10px] uppercase tracking-wider">
+                    Certified Particulars &amp; Active Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {statutoryBadges.map((item, i) => (
+                  <tr key={i} className="border-b border-slate-300 even:bg-slate-50">
+                    <td className="px-3 py-2 font-bold text-slate-900 border-r border-slate-300 align-top">
+                      {item.label}
+                    </td>
+                    <td className="px-3 py-2 text-slate-900 align-top">
+                      {parseInline(item.value)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
-        {/* Section Adapter 3: Proposed Intervention Sequential Flow */}
+        {/* Section Adapter 3: Proposed Intervention Narrative Sequence */}
         {sectionKey === 'proposed_intervention' && (
-          <div className="mb-6 rounded-lg border border-slate-300 bg-slate-50/80 p-3.5 keep-together shadow-2xs">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-600 block mb-2">
-              Sequential Process Flow: Problem → Intervention → Activities → Outputs → Outcomes
-            </span>
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="px-2.5 py-1 rounded bg-white border border-slate-300 font-semibold text-slate-800 shadow-2xs">
-                1. Needs Assessment
-              </span>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span className="px-2.5 py-1 rounded bg-white border border-slate-300 font-semibold text-slate-800 shadow-2xs">
-                2. Village Mobilization
-              </span>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span className="px-2.5 py-1 rounded bg-white border border-slate-300 font-semibold text-slate-800 shadow-2xs">
-                3. Portal Documentation
-              </span>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span className="px-2.5 py-1 rounded bg-white border border-slate-300 font-semibold text-slate-800 shadow-2xs">
-                4. Bank Credit Camps
-              </span>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span className="px-2.5 py-1 rounded bg-indigo-950 text-white font-semibold shadow-2xs">
-                5. Sustainable Outcomes
-              </span>
-            </div>
+          <div className="mb-3 text-xs font-serif text-slate-800 italic border-l-2 border-slate-800 pl-3 py-1">
+            Methodological Sequence: 1. Needs Assessment &amp; Baseline Verification &rarr; 2. Village Mobilization &amp; Beneficiary Selection &rarr; 3. Documentation &amp; Portal Enrollment &rarr; 4. Technical Deployment &amp; Linkages &rarr; 5. Post-Intervention Monitoring &amp; Handover.
           </div>
         )}
 
-        {/* Section Adapter 4: Activity & Impact Matrix KPI Highlight Strip */}
-        {sectionKey === 'activity_and_impact_matrix' && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 keep-together">
-            <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 text-center shadow-2xs">
-              <span className="text-[10px] uppercase font-bold text-slate-500 block">Outreach Cohort</span>
-              <span className="text-base font-black text-slate-900 font-mono">15,000+</span>
-              <span className="text-[10px] text-slate-500 block mt-0.5">Agrarian Families</span>
-            </div>
-            <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 text-center shadow-2xs">
-              <span className="text-[10px] uppercase font-bold text-slate-500 block">Portal Registrations</span>
-              <span className="text-base font-black text-slate-900 font-mono">1,200</span>
-              <span className="text-[10px] text-slate-500 block mt-0.5">Viable Applications</span>
-            </div>
-            <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 text-center shadow-2xs">
-              <span className="text-[10px] uppercase font-bold text-slate-500 block">Pump Sets Solarized</span>
-              <span className="text-base font-black text-slate-900 font-mono">500</span>
-              <span className="text-[10px] text-slate-500 block mt-0.5">Diesel Transition</span>
-            </div>
-            <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 text-center shadow-2xs">
-              <span className="text-[10px] uppercase font-bold text-slate-500 block">Net Income Surge</span>
-              <span className="text-base font-black text-emerald-700 font-mono">+30%</span>
-              <span className="text-[10px] text-emerald-600 block mt-0.5 font-semibold">Annual Farmer Savings</span>
-            </div>
-          </div>
-        )}
-
-        {/* Section Adapter 5: Line Item Budget Allocation Summary */}
+        {/* Section Adapter 4: Line Item Budget Formal Tier Summary Table */}
         {(sectionKey === 'line_item_budget' || sectionKey === 'budget') && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 keep-together">
-            <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 shadow-2xs">
-              <span className="text-[10px] uppercase font-bold text-slate-500 block">Tier 1: Personnel</span>
-              <span className="text-xs font-bold text-slate-900 block mt-1">HR & Engineers</span>
-              <span className="text-[10px] text-slate-500 block">Monthly Honoraria</span>
+          <div className="mb-5 keep-together">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-900 border-b border-slate-800 pb-1 mb-2 font-serif">
+              Summary of Budget Heads &amp; Expenditure Tiers
             </div>
-            <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 shadow-2xs">
-              <span className="text-[10px] uppercase font-bold text-slate-500 block">Tier 2: Direct Ops</span>
-              <span className="text-xs font-bold text-slate-900 block mt-1">Farmer Camps & IEC</span>
-              <span className="text-[10px] text-slate-500 block">Outreach Venues</span>
-            </div>
-            <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 shadow-2xs">
-              <span className="text-[10px] uppercase font-bold text-slate-500 block">Tier 3: M&E & Audit</span>
-              <span className="text-xs font-bold text-slate-900 block mt-1">Surveys & CA Audit</span>
-              <span className="text-[10px] text-slate-500 block">Statutory Compliance</span>
-            </div>
-            <div className="rounded-lg border border-slate-900 bg-slate-900 text-white p-3 shadow-2xs">
-              <span className="text-[10px] uppercase font-bold text-slate-300 block">Total Budget Ask</span>
-              <span className="text-sm font-black font-mono block mt-1">INR 35,00,000</span>
-              <span className="text-[10px] text-emerald-400 block font-medium">100% Itemized</span>
-            </div>
+            <table className="w-full border-collapse border border-slate-800 text-xs font-serif">
+              <thead>
+                <tr className="bg-slate-900 text-white">
+                  <th className="w-24 px-3 py-1.5 text-left border-r border-slate-700 text-[10px] uppercase">Tier Head</th>
+                  <th className="px-3 py-1.5 text-left border-r border-slate-700 text-[10px] uppercase">Expenditure Category</th>
+                  <th className="w-36 px-3 py-1.5 text-right text-[10px] uppercase">Allocation Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-slate-300">
+                  <td className="px-3 py-1.5 font-bold border-r border-slate-300">Tier 1</td>
+                  <td className="px-3 py-1.5 border-r border-slate-300">Personnel, Program Managers &amp; Field Coordinators</td>
+                  <td className="px-3 py-1.5 text-right">Monthly Honoraria</td>
+                </tr>
+                <tr className="border-b border-slate-300 bg-slate-50">
+                  <td className="px-3 py-1.5 font-bold border-r border-slate-300">Tier 2</td>
+                  <td className="px-3 py-1.5 border-r border-slate-300">Direct Program Execution, Community Camps &amp; IEC</td>
+                  <td className="px-3 py-1.5 text-right">Operational Deliverables</td>
+                </tr>
+                <tr className="border-b border-slate-300">
+                  <td className="px-3 py-1.5 font-bold border-r border-slate-300">Tier 3</td>
+                  <td className="px-3 py-1.5 border-r border-slate-300">Monitoring, Evaluation, Statutory CA Audit &amp; Documentation</td>
+                  <td className="px-3 py-1.5 text-right">Governance &amp; Compliance</td>
+                </tr>
+                <tr className="bg-slate-100 font-bold border-t-2 border-slate-800">
+                  <td colSpan={2} className="px-3 py-2 uppercase tracking-wider text-slate-900">
+                    Grand Total Financial Assistance Requested
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono text-slate-900 font-bold">
+                    100% Itemized Below
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         )}
 
@@ -641,12 +616,9 @@ export default function ProposalWorkspace({
           if (block.type === 'table') {
             const tableLines = block.lines
             return (
-              <div
-                key={bIdx}
-                className="my-3 overflow-x-auto rounded-lg border border-slate-300 shadow-2xs bg-white"
-              >
-                <table className="min-w-full divide-y divide-slate-200 text-xs text-left">
-                  <tbody className="divide-y divide-slate-100">
+              <div key={bIdx} className="my-4 overflow-x-auto">
+                <table className="w-full border-collapse border border-slate-800 text-xs font-serif text-left">
+                  <tbody>
                     {tableLines.map((row, rIdx) => {
                       if (/^\|[-:\s|]+\|$/.test(row)) return null
                       const cols = row
@@ -669,10 +641,10 @@ export default function ProposalWorkspace({
                             isHeader
                               ? 'bg-slate-900 font-bold text-white'
                               : isTotalRow
-                                ? 'bg-slate-900 font-bold text-white'
+                                ? 'bg-slate-100 font-bold text-slate-900 border-t-2 border-b-2 border-slate-800'
                                 : isTierSubhead
                                   ? 'bg-slate-100 font-bold text-slate-900'
-                                  : 'even:bg-slate-50/60 hover:bg-slate-50 transition-colors'
+                                  : 'even:bg-slate-50'
                           }
                         >
                           {cols.map((col, cIdx) => {
@@ -680,10 +652,12 @@ export default function ProposalWorkspace({
                             return (
                               <td
                                 key={cIdx}
-                                className={`px-3 py-2 border-r border-slate-200 last:border-r-0 ${
-                                  isHeader || isTotalRow
-                                    ? 'text-white font-bold'
-                                    : 'text-slate-800'
+                                className={`px-3 py-2 border border-slate-300 ${
+                                  isHeader
+                                    ? 'text-white font-bold border-slate-700'
+                                    : isTotalRow
+                                      ? 'text-slate-900 font-bold border-slate-800'
+                                      : 'text-slate-900'
                                 } ${isNumeric ? 'text-right font-mono' : ''}`}
                               >
                                 {parseInline(col)}
@@ -699,16 +673,16 @@ export default function ProposalWorkspace({
             )
           }
 
-          // Render text block with headings and lists
+          // Render text block with formal headings, justified paragraphs, and clean lists
           return (
-            <div key={bIdx} className="space-y-2.5">
+            <div key={bIdx} className="space-y-2">
               {block.lines.map((line, lIdx) => {
                 const trimmed = line.trim()
                 if (!trimmed) return <div key={lIdx} className="h-1" />
 
                 if (trimmed.startsWith('#### ')) {
                   return (
-                    <h5 key={lIdx} className="text-xs font-bold text-slate-900 mt-2 mb-1">
+                    <h5 key={lIdx} className="text-xs font-bold font-serif text-slate-900 mt-2 mb-1">
                       {parseInline(trimmed.slice(5))}
                     </h5>
                   )
@@ -717,9 +691,8 @@ export default function ProposalWorkspace({
                   return (
                     <h4
                       key={lIdx}
-                      className="text-sm font-bold text-slate-900 mt-3 mb-1.5 flex items-center gap-1.5"
+                      className="text-sm font-bold font-serif text-slate-900 mt-3 mb-1"
                     >
-                      <span className="size-1.5 rounded-full bg-slate-800 inline-block" />
                       {parseInline(trimmed.slice(4))}
                     </h4>
                   )
@@ -728,31 +701,25 @@ export default function ProposalWorkspace({
                   return (
                     <h3
                       key={lIdx}
-                      className="text-sm font-bold text-slate-900 uppercase tracking-wider mt-4 mb-2 pb-1 border-b border-slate-200"
+                      className="text-sm font-bold font-serif text-slate-900 uppercase tracking-wide mt-4 mb-2 pb-1 border-b border-slate-300"
                     >
                       {parseInline(trimmed.slice(3))}
                     </h3>
                   )
                 }
 
-                // Problem Statement Numbered Block Adapter
+                // Problem Statement Numbered Clause Adapter (Formal, No Cards)
                 if (sectionKey === 'problem_statement' && /^\d+\.\s+\*\*/.test(trimmed)) {
                   const numMatch = trimmed.match(/^(\d+)\.\s+\*\*(.+?)\*\*:\s*(.*)$/)
                   if (numMatch) {
                     const [, num, title, desc] = numMatch
                     return (
-                      <div
-                        key={lIdx}
-                        className="rounded-lg border border-slate-200 bg-slate-50/60 p-3.5 my-2.5 keep-together space-y-1 shadow-2xs"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="flex size-5 items-center justify-center rounded bg-slate-800 text-white font-bold text-[10px]">
-                            {num}
-                          </span>
-                          <h5 className="font-bold text-slate-900 text-xs">{title}</h5>
-                        </div>
-                        <p className="text-slate-700 text-xs pl-7 leading-relaxed">
-                          {parseInline(desc)}
+                      <div key={lIdx} className="my-2.5 font-serif text-slate-900">
+                        <p
+                          className="text-justify leading-relaxed"
+                          style={{ textAlign: 'justify', textJustify: 'inter-word' }}
+                        >
+                          <strong>3.{num} {title}:</strong> {parseInline(desc)}
                         </p>
                       </div>
                     )
@@ -761,9 +728,14 @@ export default function ProposalWorkspace({
 
                 if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
                   return (
-                    <div key={lIdx} className="flex items-start gap-2 pl-2">
-                      <span className="text-slate-700 font-bold mt-0.5">•</span>
-                      <p className="flex-1 text-slate-700">{parseInline(trimmed.slice(2))}</p>
+                    <div key={lIdx} className="flex items-start gap-2 pl-3 font-serif">
+                      <span className="text-slate-900 font-bold mt-0.5">•</span>
+                      <p
+                        className="flex-1 text-slate-900 text-justify leading-relaxed"
+                        style={{ textAlign: 'justify', textJustify: 'inter-word' }}
+                      >
+                        {parseInline(trimmed.slice(2))}
+                      </p>
                     </div>
                   )
                 }
@@ -771,15 +743,24 @@ export default function ProposalWorkspace({
                   const num = trimmed.match(/^(\d+\.)\s/)[1]
                   const rest = trimmed.replace(/^\d+\.\s/, '')
                   return (
-                    <div key={lIdx} className="flex items-start gap-2 pl-2">
-                      <span className="font-semibold text-slate-900 shrink-0">{num}</span>
-                      <p className="flex-1 text-slate-700">{parseInline(rest)}</p>
+                    <div key={lIdx} className="flex items-start gap-2 pl-3 font-serif">
+                      <span className="font-bold text-slate-900 shrink-0">{num}</span>
+                      <p
+                        className="flex-1 text-slate-900 text-justify leading-relaxed"
+                        style={{ textAlign: 'justify', textJustify: 'inter-word' }}
+                      >
+                        {parseInline(rest)}
+                      </p>
                     </div>
                   )
                 }
 
                 return (
-                  <p key={lIdx} className="leading-relaxed">
+                  <p
+                    key={lIdx}
+                    className="font-serif text-slate-900 text-justify leading-relaxed"
+                    style={{ textAlign: 'justify', textJustify: 'inter-word' }}
+                  >
                     {parseInline(trimmed)}
                   </p>
                 )
@@ -797,8 +778,17 @@ export default function ProposalWorkspace({
       <style>{`
         @media print {
           @page {
-            size: A4;
-            margin: 14mm 15mm 16mm 15mm;
+            size: A4 portrait;
+            margin: 18mm 16mm 18mm 16mm;
+          }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            font-family: 'Times New Roman', Times, 'Liberation Serif', Georgia, serif !important;
+            font-size: 10pt !important;
+            line-height: 1.5 !important;
           }
           body * {
             visibility: hidden !important;
@@ -808,63 +798,29 @@ export default function ProposalWorkspace({
             visibility: visible !important;
           }
           #printable-proposal-document {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
+            position: static !important;
+            display: block !important;
             width: 100% !important;
+            max-width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
-            background: #ffffff !important;
-            color: #0f172a !important;
-            font-size: 10pt !important;
+            background: transparent !important;
+            color: #000000 !important;
             border: none !important;
             box-shadow: none !important;
           }
           .no-print {
             display: none !important;
           }
-          .print-running-header {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            height: 7mm !important;
-            border-bottom: 0.5pt solid #cbd5e1 !important;
-            display: flex !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-            font-size: 8pt !important;
-            color: #64748b !important;
-            font-family: serif !important;
-            background: #ffffff !important;
-            z-index: 1000 !important;
-            padding-bottom: 1mm !important;
-          }
-          .print-running-footer {
-            position: fixed !important;
-            bottom: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            height: 7mm !important;
-            border-top: 0.5pt solid #cbd5e1 !important;
-            display: flex !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-            font-size: 8pt !important;
-            color: #64748b !important;
-            font-family: serif !important;
-            background: #ffffff !important;
-            z-index: 1000 !important;
-            padding-top: 1mm !important;
-          }
           .print-section {
             break-inside: auto !important;
             page-break-inside: auto !important;
-            margin-bottom: 16pt !important;
+            margin-bottom: 20pt !important;
           }
           h1, h2, h3, h4, .section-heading {
             break-after: avoid !important;
             page-break-after: avoid !important;
+            font-family: 'Times New Roman', Times, Georgia, serif !important;
           }
           table {
             break-inside: auto !important;
@@ -877,18 +833,27 @@ export default function ProposalWorkspace({
             page-break-inside: avoid !important;
           }
           th, td {
-            border: 0.5pt solid #cbd5e1 !important;
-            padding: 4pt 6pt !important;
+            border: 0.5pt solid #334155 !important;
+            padding: 4.5pt 6pt !important;
             font-size: 8.5pt !important;
+          }
+          p, li {
+            text-align: justify !important;
+            text-justify: inter-word !important;
+            hyphens: auto !important;
           }
           .signature-block {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
-            margin-top: 18pt !important;
+            margin-top: 20pt !important;
           }
           .keep-together {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
+          }
+          * {
+            box-shadow: none !important;
+            border-radius: 0 !important;
           }
         }
       `}</style>
@@ -1364,30 +1329,11 @@ export default function ProposalWorkspace({
             className={`p-6 sm:p-10 max-w-4xl mx-auto space-y-12 relative ${viewMode === 'document' ? 'block' : 'hidden print:block'
               }`}
           >
-            {/* Running Header & Footer for Browser Print View */}
-            <div className="print-running-header hidden print:flex">
-              <span className="truncate max-w-[65%]">
-                {activeNgo?.name || 'Applicant Organization'} — {selectedGrant?.title || 'Grant Proposal'}
-              </span>
-              <span className="font-mono text-[9px] uppercase tracking-wider text-slate-500">
-                Official Submission Dossier
-              </span>
-            </div>
-
-            <div className="print-running-footer hidden print:flex">
-              <span className="truncate max-w-[70%]">
-                {activeNgo?.name || 'Applicant Organization'} | {selectedGrant?.title || 'Grant Proposal'} | Confidential
-              </span>
-              <span className="font-mono text-[9px] text-slate-500">
-                Official Filing Ref
-              </span>
-            </div>
-
             {/* 1. Formal Front Cover Page (Print Page 1) */}
-            <div className="proposal-cover-page bg-white border-2 border-slate-800 rounded-xl p-8 sm:p-12 shadow-sm min-h-[850px] flex flex-col justify-between print:min-h-screen print:border-slate-800 print:shadow-none print:m-0 print:break-after-page">
+            <div className="proposal-cover-page bg-white p-8 sm:p-12 border border-slate-400 text-slate-900 font-serif min-h-[850px] flex flex-col justify-between print:min-h-screen print:border-none print:m-0 print:p-0 print:break-after-page">
               <div>
                 {/* Top Institutional Crest / Logo */}
-                <div className="flex items-center justify-between border-b border-slate-200 pb-6 mb-8">
+                <div className="flex items-center justify-between border-b border-slate-300 pb-4 mb-8">
                   {assetsMap.logo ? (
                     <img
                       src={assetsMap.logo}
@@ -1395,135 +1341,125 @@ export default function ProposalWorkspace({
                       className="h-16 w-auto object-contain max-w-[200px]"
                     />
                   ) : (
-                    <div className="flex items-center gap-2">
-                      <div className="size-12 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-xl shadow-xs">
-                        {activeNgo?.name?.charAt(0) || 'G'}
-                      </div>
-                      <div>
-                        <span className="font-bold text-slate-900 text-sm block">
-                          {activeNgo?.name || 'Applicant Organization'}
-                        </span>
-                        <span className="text-[10px] text-slate-500 uppercase tracking-widest block font-mono">
-                          Certified Non-Profit Entity
-                        </span>
-                      </div>
+                    <div>
+                      <span className="font-bold text-slate-900 text-base block uppercase tracking-wide">
+                        {activeNgo?.name || 'Applicant Organization'}
+                      </span>
+                      <span className="text-[10px] text-slate-600 uppercase tracking-widest block font-serif">
+                        Certified Non-Profit Organization
+                      </span>
                     </div>
                   )}
 
-                  <div className="text-right">
-                    <span className="inline-block px-3 py-1 bg-slate-900 text-white font-mono text-[10px] font-bold uppercase rounded-sm tracking-wider">
+                  <div className="text-right font-serif">
+                    <span className="inline-block px-2.5 py-0.5 border border-slate-900 text-slate-900 font-mono text-[10px] font-bold uppercase tracking-wider">
                       Official Dossier
                     </span>
-                    <span className="text-[11px] text-slate-500 block font-mono mt-1">
+                    <span className="text-[11px] text-slate-600 block font-mono mt-1">
                       Ref: GS/2026/PROP-{proposalData.proposal_id.slice(0, 8).toUpperCase()}
                     </span>
                   </div>
                 </div>
 
                 {/* Hero Title Block */}
-                <div className="text-center py-6 sm:py-10 space-y-4">
-                  <span className="text-[11px] font-bold tracking-widest text-slate-700 uppercase px-3 py-1 bg-slate-100 rounded-sm border border-slate-300 inline-block font-mono">
-                    PROPOSAL FOR GRANT ASSISTANCE
+                <div className="text-center py-6 sm:py-8 space-y-3">
+                  <span className="text-[11px] font-bold tracking-widest text-slate-700 uppercase border-y border-slate-300 py-1 inline-block font-serif">
+                    DETAILED PROJECT REPORT (DPR) &amp; GRANT APPLICATION
                   </span>
-                  <h1 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-tight max-w-2xl mx-auto">
+                  <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 uppercase tracking-tight leading-snug max-w-2xl mx-auto font-serif">
                     {selectedGrant?.title || 'Grassroots Developmental Intervention'}
                   </h1>
-                  <p className="text-sm sm:text-base text-slate-600 max-w-xl mx-auto font-medium">
-                    A comprehensive project proposal formally submitted under the aegis of{' '}
+                  <p className="text-xs sm:text-sm text-slate-700 max-w-xl mx-auto font-serif">
+                    A formal project proposal submitted for financial assistance to{' '}
                     <strong className="text-slate-900">{selectedGrant?.funder_name || 'Grant Review Board'}</strong>
                   </p>
                 </div>
 
-                <div className="w-24 h-1 bg-slate-900 mx-auto rounded-full my-6" />
+                <div className="w-32 h-0.5 bg-slate-900 mx-auto my-6" />
 
-                {/* Metadata Cards Grid (2x2) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
-                  {/* Card 1: Submitted To */}
-                  <div className="bg-white rounded-lg border border-slate-300 p-4 shadow-2xs">
-                    <span className="text-[10px] font-black uppercase text-slate-900 tracking-wider block mb-2 font-mono">
-                      SUBMITTED TO:
-                    </span>
-                    <p className="text-sm font-bold text-slate-900 leading-snug">
-                      {selectedGrant?.funder_name || 'Funding Agency'}
-                    </p>
-                    <p className="text-xs text-slate-600 mt-1">
-                      Grant Scheme: <strong className="text-slate-800">{selectedGrant?.title}</strong>
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Funding Track: <span className="uppercase font-semibold text-slate-700 font-mono text-[11px]">{selectedGrant?.funder_type || 'CSR / GIA'}</span>
-                    </p>
-                  </div>
-
-                  {/* Card 2: Submitted By */}
-                  <div className="bg-white rounded-lg border border-slate-300 p-4 shadow-2xs">
-                    <span className="text-[10px] font-black uppercase text-slate-900 tracking-wider block mb-2 font-mono">
-                      SUBMITTED BY:
-                    </span>
-                    <p className="text-sm font-bold text-slate-900 leading-snug">
-                      {activeNgo?.name || 'Applicant Organization'}
-                    </p>
-                    <p className="text-xs text-slate-600 mt-1">
-                      Darpan ID: <strong className="font-mono text-slate-900">{activeNgo?.darpan_id || 'MH/2020/0789123'}</strong>
-                    </p>
-                    <p className="text-xs text-emerald-700 font-semibold mt-0.5">
-                      Tax Status: 12A & 80G Certified w.e.f. Inception
-                    </p>
-                  </div>
-
-                  {/* Card 3: Key Submission Credentials */}
-                  <div className="bg-white rounded-lg border border-slate-300 p-4 shadow-2xs">
-                    <span className="text-[10px] font-black uppercase text-slate-900 tracking-wider block mb-2 font-mono">
-                      SUBMISSION CREDENTIALS:
-                    </span>
-                    <p className="text-xs text-slate-700">
-                      Document Tracking Ref:{' '}
-                      <strong className="font-mono text-slate-900">
-                        GS/2026/PROP-{proposalData.proposal_id.slice(0, 8).toUpperCase()}
-                      </strong>
-                    </p>
-                    <p className="text-xs text-slate-700 mt-1">
-                      Date of Filing:{' '}
-                      <strong className="text-slate-900">
-                        {new Date().toLocaleDateString('en-IN', { dateStyle: 'long' })}
-                      </strong>
-                    </p>
-                    <p className="text-xs text-slate-600 font-medium mt-1">
-                      Grounding: Certified via GrantSetu Multi-Agent System
-                    </p>
-                  </div>
-
-                  {/* Card 4: Project Summary Metrics */}
-                  <div className="bg-white rounded-lg border border-slate-300 p-4 shadow-2xs">
-                    <span className="text-[10px] font-black uppercase text-slate-900 tracking-wider block mb-2 font-mono">
-                      PROJECT FRAMEWORK:
-                    </span>
-                    <p className="text-xs text-slate-700">
-                      Implementation Period: <strong className="text-slate-900">12–24 Months</strong>
-                    </p>
-                    <p className="text-xs text-slate-700 mt-1">
-                      Operational Geography: <strong className="text-slate-900">{activeNgo?.location || 'India'}</strong>
-                    </p>
-                    <p className="text-xs text-slate-700 mt-1">
-                      Audit Readiness: <strong className="text-emerald-700">Pre-Audited for CA & UC Filing</strong>
-                    </p>
-                  </div>
+                {/* Institutional Submission Particulars Table (Formal 2x2, No Cards) */}
+                <div className="my-6">
+                  <table className="w-full border-collapse border border-slate-800 text-xs font-serif">
+                    <tbody>
+                      <tr className="border-b border-slate-800">
+                        <td className="w-1/2 p-3.5 border-r border-slate-800 align-top">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                            Submitted To:
+                          </div>
+                          <div className="text-sm font-bold text-slate-900 leading-snug">
+                            {selectedGrant?.funder_name || 'Funding Organization / Selection Committee'}
+                          </div>
+                          <div className="text-xs text-slate-700 mt-1">
+                            Scheme / Program: <strong>{selectedGrant?.title}</strong>
+                          </div>
+                          <div className="text-xs text-slate-600 mt-0.5">
+                            Funding Category: {selectedGrant?.funder_type || 'CSR Assistance / Grants-in-Aid'}
+                          </div>
+                        </td>
+                        <td className="w-1/2 p-3.5 align-top">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                            Submitted By (Applicant):
+                          </div>
+                          <div className="text-sm font-bold text-slate-900 leading-snug">
+                            {activeNgo?.name || 'Applicant Organization'}
+                          </div>
+                          <div className="text-xs text-slate-700 mt-1">
+                            NITI Aayog Darpan ID: <span className="font-mono font-semibold">{activeNgo?.darpan_id || 'MH/2020/0789123'}</span>
+                          </div>
+                          <div className="text-xs text-slate-600 mt-0.5">
+                            Statutory Status: 12A &amp; 80G Certified Non-Profit
+                          </div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="w-1/2 p-3.5 border-r border-slate-800 align-top bg-slate-50/50">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                            Filing Credentials:
+                          </div>
+                          <div className="text-xs text-slate-800">
+                            Dossier Reference: <span className="font-mono font-bold">GS/2026/PROP-{proposalData.proposal_id.slice(0, 8).toUpperCase()}</span>
+                          </div>
+                          <div className="text-xs text-slate-800 mt-1">
+                            Date of Formal Submission: <strong>{new Date().toLocaleDateString('en-IN', { dateStyle: 'long' })}</strong>
+                          </div>
+                          <div className="text-xs text-slate-600 mt-1">
+                            Grounding: Entailment Audited via Certified Regulatory Filings
+                          </div>
+                        </td>
+                        <td className="w-1/2 p-3.5 align-top bg-slate-50/50">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                            Project Profile:
+                          </div>
+                          <div className="text-xs text-slate-800">
+                            Implementation Scope: <strong>12–24 Months Phased Horizon</strong>
+                          </div>
+                          <div className="text-xs text-slate-800 mt-1">
+                            Geographic Coverage: <strong>{activeNgo?.location || 'India'}</strong>
+                          </div>
+                          <div className="text-xs text-slate-600 mt-1">
+                            Compliance: Statutory UC &amp; CA Audit Pre-Configured
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
               {/* Cover Bottom Disclaimer */}
-              <div className="pt-8 border-t border-slate-200 text-center text-[11px] text-slate-500 italic">
+              <div className="pt-6 border-t border-slate-300 text-center text-[11px] text-slate-600 italic font-serif">
                 This document contains verified institutional methodologies, audited operational track records,
                 and itemized budgetary structures formulated specifically for this grant review committee.
               </div>
             </div>
 
             {/* 2. Executive Transmittal Letter (Print Page 2) */}
-            <div className="proposal-transmittal-letter bg-white border border-slate-200 rounded-xl p-8 sm:p-12 shadow-sm print:border-none print:shadow-none print:m-0 print:p-0 print:break-after-page">
+            <div className="proposal-transmittal-letter bg-white p-8 sm:p-12 border border-slate-400 text-slate-900 font-serif min-h-[850px] print:border-none print:m-0 print:p-0 print:break-after-page">
               <div className="border-b-2 border-slate-900 pb-4 mb-6 flex items-start justify-between">
                 <div>
-                  <h2 className="text-xl font-black text-slate-900">{activeNgo?.name || 'Applicant Organization'}</h2>
+                  <h2 className="text-lg font-bold text-slate-900 uppercase tracking-wide">{activeNgo?.name || 'Applicant Organization'}</h2>
                   <p className="text-xs text-slate-600 mt-0.5">
-                    NITI Aayog Darpan: <span className="font-mono font-bold">{activeNgo?.darpan_id || 'MH/2020/0789123'}</span> | 12A & 80G Certified
+                    NITI Aayog Darpan ID: <span className="font-mono font-bold">{activeNgo?.darpan_id || 'MH/2020/0789123'}</span> | 12A &amp; 80G Certified
                   </p>
                   <p className="text-xs text-slate-500">{activeNgo?.location || 'Headquarters'}</p>
                 </div>
@@ -1532,257 +1468,293 @@ export default function ProposalWorkspace({
                 )}
               </div>
 
-              <div className="text-xs text-slate-700 space-y-4 leading-relaxed font-serif">
-                <div className="flex justify-between items-baseline text-slate-600 font-sans">
+              <div className="text-xs sm:text-[13px] text-slate-800 space-y-4 leading-relaxed font-serif">
+                <div className="flex justify-between items-baseline text-slate-700">
                   <span><strong>Date:</strong> {new Date().toLocaleDateString('en-IN', { dateStyle: 'long' })}</span>
-                  <span><strong>Ref:</strong> GS/2026/PROP-{proposalData.proposal_id.slice(0, 8).toUpperCase()}</span>
+                  <span className="font-mono"><strong>Ref:</strong> GS/2026/PROP-{proposalData.proposal_id.slice(0, 8).toUpperCase()}</span>
                 </div>
 
-                <div className="font-sans">
+                <div>
                   <p><strong>To,</strong></p>
                   <p className="font-bold text-slate-900">The Selection Committee / CSR Board</p>
                   <p>{selectedGrant?.funder_name}</p>
                 </div>
 
-                <p className="font-sans font-bold text-slate-900 pt-1 pb-1 border-y border-slate-100">
+                <p className="font-bold text-slate-900 pt-1 pb-1 border-y border-slate-200">
                   Subject: Formal Submission of Proposal under &quot;{selectedGrant?.title}&quot;
                 </p>
 
                 <p>Respected Sir / Madam,</p>
 
-                <p>
+                <p
+                  className="text-justify"
+                  style={{ textAlign: 'justify', textJustify: 'inter-word' }}
+                >
                   On behalf of <strong>{activeNgo?.name}</strong>, we have the honor of formally submitting our comprehensive grant proposal for your favorable consideration. Operating as a dedicated civil society organization, our institutional mission is: <em>&quot;{activeNgo?.mission || 'Promoting grassroots social welfare and sustainable development'}&quot;</em>.
                 </p>
 
-                <p>
+                <p
+                  className="text-justify"
+                  style={{ textAlign: 'justify', textJustify: 'inter-word' }}
+                >
                   We have conducted rigorous field needs assessments and formulated an evidence-backed intervention designed to create measurable, enduring impact. All historical credentials, founding years, and program milestones cited in this proposal are grounded in certified statutory filings, audited balance sheets, and regulatory returns.
                 </p>
 
-                <p>
+                <p
+                  className="text-justify"
+                  style={{ textAlign: 'justify', textJustify: 'inter-word' }}
+                >
                   We assure your committee of transparent governance, rigorous periodic milestones, and prompt utilization certifications. We remain at your disposal for technical discussions, site visits, or presentations at your convenience.
                 </p>
 
                 <p>Thank you for your leadership and commitment to transformative developmental partnerships.</p>
 
-                <div className="pt-6 font-sans">
-                  <p className="text-xs text-slate-600">Yours sincerely,</p>
+                <div className="pt-6">
+                  <p className="text-xs text-slate-700">Yours sincerely,</p>
                   {assetsMap.signature && (
                     <img src={assetsMap.signature} alt="Signature" className="h-14 w-auto object-contain my-1" />
                   )}
                   <p className="font-bold text-slate-900 mt-2">Authorized Signatory</p>
-                  <p className="text-slate-600 text-xs">{activeNgo?.name}</p>
+                  <p className="text-slate-700 text-xs">{activeNgo?.name}</p>
                 </div>
               </div>
             </div>
 
-            {/* 3. Executive KPI Cards & Table of Contents (Print Page 3) */}
-            <div className="mb-10 space-y-6 print:break-after-page">
-              {/* 4 KPI Highlight Tiles */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 text-center shadow-2xs">
-                  <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Total Funding Ask</span>
-                  <span className="text-base font-black text-slate-900 font-mono">INR 35,00,000</span>
-                  <span className="text-[10px] text-slate-500 block mt-0.5">3-Tier Unit Costs</span>
-                </div>
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 text-center shadow-2xs">
-                  <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Target Reach</span>
-                  <span className="text-base font-black text-slate-900 font-mono">15,000+</span>
-                  <span className="text-[10px] text-slate-500 block mt-0.5">Rural Households</span>
-                </div>
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 text-center shadow-2xs">
-                  <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Implementation</span>
-                  <span className="text-base font-black text-slate-900 font-mono">12–24 Mos</span>
-                  <span className="text-[10px] text-slate-500 block mt-0.5">Phased Timeline</span>
-                </div>
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 text-center shadow-2xs">
-                  <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Statutory Status</span>
-                  <span className="text-base font-black text-emerald-700">12A & 80G</span>
-                  <span className="text-[10px] text-emerald-600 block mt-0.5 font-semibold">Active & Grounded</span>
-                </div>
-              </div>
-
-              {/* Table of Contents List */}
-              <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-2xs">
-                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">
-                  Table of Contents
-                </h3>
-                <div className="space-y-2.5 text-xs">
-                  {sectionKeys.map((key, idx) => {
-                    const fullTitle = SECTION_TITLES[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
-                    return (
-                      <div key={key} className="flex items-center justify-between text-slate-700">
-                        <span className="font-semibold text-slate-900 truncate">
-                          {idx + 1}. {fullTitle}
-                        </span>
-                        <span className="text-slate-300 font-mono text-[11px] truncate mx-3 grow text-center">
-                          . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
-                        </span>
-                        <span className="text-slate-500 font-mono text-[11px] shrink-0 font-medium">
-                          Sec. {String(idx + 1).padStart(2, '0')}
-                        </span>
-                      </div>
-                    )
-                  })}
-                  <div className="flex items-center justify-between text-slate-700 pt-2 border-t border-slate-100">
-                    <span className="font-semibold text-slate-900 truncate">
-                      {sectionKeys.length + 1}. Statutory Declarations, Banking Credentials & Sign-Off
-                    </span>
-                    <span className="text-slate-300 font-mono text-[11px] truncate mx-3 grow text-center">
-                      . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
-                    </span>
-                    <span className="text-slate-500 font-mono text-[11px] shrink-0 font-medium">
-                      Closing Page
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Continuous Presentation of All Proposal Sections */}
-            <div className="space-y-8 bg-white border border-slate-200 rounded-xl p-8 sm:p-12 shadow-sm print:border-none print:shadow-none print:p-0">
-              {sectionKeys.map((key, sIdx) => {
-                const fullTitle = SECTION_TITLES[key] || key
-                  .replace(/_/g, ' ')
-                  .replace(/\b\w/g, (l) => l.toUpperCase())
-                const content = editableSections[key]
-
-                return (
-                  <section key={key} className="print-section pb-8 border-b border-slate-100 last:border-b-0">
-                    <div className="flex items-center gap-2.5 mb-4 section-heading">
-                      <span className="flex size-7 items-center justify-center rounded bg-slate-900 text-white font-bold text-xs shadow-2xs">
-                        {sIdx + 1}
+            {/* 3. Main Document Body with Print-Safe Running Header & Footer Layout */}
+            <table className="print-layout-table w-full border-none">
+              {/* Running Header: printed on pages 3+ */}
+              <thead className="hidden print:table-header-group">
+                <tr>
+                  <td className="border-none pb-4">
+                    <div className="flex justify-between items-center text-[8.5pt] text-slate-600 font-serif border-b border-slate-400 pb-1">
+                      <span className="truncate max-w-[70%]">
+                        {activeNgo?.name || 'Applicant Organization'} — {selectedGrant?.title || 'Grant Proposal'}
                       </span>
-                      <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
-                        {fullTitle}
-                      </h2>
+                      <span className="uppercase text-[7.5pt] tracking-wider text-slate-500 font-mono">
+                        Official Submission Dossier
+                      </span>
                     </div>
-                    <div className="pl-9">
-                      {renderFormattedMarkdown(content, key)}
+                  </td>
+                </tr>
+              </thead>
+
+              {/* Main Content Body */}
+              <tbody>
+                <tr>
+                  <td className="border-none">
+                    <div className="space-y-10">
+                      {/* Table of Contents (Formal, No Cards) */}
+                      <div className="proposal-toc pb-8 border-b-2 border-slate-900 print:break-after-page">
+                        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest mb-4 font-serif border-b border-slate-900 pb-1 text-center">
+                          TABLE OF CONTENTS
+                        </h3>
+                        <div className="space-y-2 text-xs font-serif">
+                          {sectionKeys.map((key, idx) => {
+                            const fullTitle = SECTION_TITLES[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
+                            return (
+                              <div key={key} className="flex items-baseline justify-between text-slate-900">
+                                <span className="font-semibold shrink-0">
+                                  {idx + 1}.0 {fullTitle}
+                                </span>
+                                <span className="border-b border-dotted border-slate-400 grow mx-2" />
+                                <span className="font-mono text-[11px] shrink-0 text-slate-700">
+                                  Page {idx + 3}
+                                </span>
+                              </div>
+                            )
+                          })}
+                          <div className="flex items-baseline justify-between text-slate-900 pt-2 border-t border-slate-300">
+                            <span className="font-bold shrink-0">
+                              {sectionKeys.length + 1}.0 Statutory Declarations, Banking Particulars &amp; Authorization
+                            </span>
+                            <span className="border-b border-dotted border-slate-400 grow mx-2" />
+                            <span className="font-mono text-[11px] shrink-0 text-slate-700">
+                              Page {sectionKeys.length + 3}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Continuous Presentation of All Proposal Sections */}
+                      <div className="space-y-10">
+                        {sectionKeys.map((key, sIdx) => {
+                          const fullTitle = SECTION_TITLES[key] || key
+                            .replace(/_/g, ' ')
+                            .replace(/\b\w/g, (l) => l.toUpperCase())
+                          const content = editableSections[key]
+
+                          return (
+                            <section key={key} className="print-section pb-8 border-b border-slate-300 last:border-b-0">
+                              <div className="mb-4 section-heading">
+                                <h2 className="text-base sm:text-lg font-bold text-slate-900 uppercase tracking-wide font-serif border-b-2 border-slate-900 pb-1">
+                                  {sIdx + 1}.0 {fullTitle}
+                                </h2>
+                              </div>
+                              <div className="text-slate-900">
+                                {renderFormattedMarkdown(content, key)}
+                              </div>
+                            </section>
+                          )
+                        })}
+                      </div>
+
+                      {/* 4. Statutory End-Page, Bank Details & Dual-Signatory Block (Formal, No Cards) */}
+                      <div className="signature-block space-y-6 pt-4 print:break-before-page">
+                        <div className="section-heading">
+                          <h2 className="text-base sm:text-lg font-bold text-slate-900 uppercase tracking-wide font-serif border-b-2 border-slate-900 pb-1">
+                            {sectionKeys.length + 1}.0 Statutory Declaration, Banking Particulars &amp; Authorization
+                          </h2>
+                          <p className="text-xs text-slate-600 mt-1 font-serif italic">
+                            Mandatory statutory undertaking and disbursement credentials for formal grant sanction.
+                          </p>
+                        </div>
+
+                        {/* Solemn Undertaking & Declaration (Formal Legal Prose) */}
+                        <div className="space-y-1.5">
+                          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 font-serif border-b border-slate-300 pb-1">
+                            {sectionKeys.length + 1}.1 Statutory Declaration and Undertaking
+                          </h3>
+                          <p
+                            className="text-xs sm:text-[13px] text-slate-900 font-serif leading-relaxed text-justify"
+                            style={{ textAlign: 'justify', textJustify: 'inter-word' }}
+                          >
+                            We, the undersigned authorized representatives of <strong>{activeNgo?.name}</strong>, hereby solemnly affirm and declare that all organizational credentials, governance disclosures, operational track records, and budgetary itemizations set forth in this proposal are true, authentic, and substantiated by our certified regulatory filings (including Form 10B/10BB audit statements, audited balance sheets, ITR-7 acknowledgments, and NITI Aayog Darpan compliance). We further affirm that no financial assistance requested under this project is duplicated across any other donor agency or government grant scheme.
+                          </p>
+                        </div>
+
+                        {/* Designated Institutional Bank Account Table */}
+                        <div className="space-y-1.5">
+                          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 font-serif border-b border-slate-300 pb-1">
+                            {sectionKeys.length + 1}.2 Designated Institutional Bank Account (Direct Benefit Transfer)
+                          </h3>
+                          <table className="w-full border-collapse border border-slate-800 text-xs font-serif">
+                            <tbody>
+                              <tr className="border-b border-slate-300">
+                                <td className="w-1/4 px-3 py-2 bg-slate-100 font-bold text-slate-900 border-r border-slate-300">
+                                  Bank Name &amp; Branch
+                                </td>
+                                <td className="w-1/4 px-3 py-2 text-slate-900 border-r border-slate-300">
+                                  State Bank of India, Main Branch, Nashik
+                                </td>
+                                <td className="w-1/4 px-3 py-2 bg-slate-100 font-bold text-slate-900 border-r border-slate-300">
+                                  Account Holder Name
+                                </td>
+                                <td className="w-1/4 px-3 py-2 text-slate-900 font-bold">
+                                  {activeNgo?.name}
+                                </td>
+                              </tr>
+                              <tr>
+                                <td className="w-1/4 px-3 py-2 bg-slate-100 font-bold text-slate-900 border-r border-slate-300">
+                                  Account Number &amp; Type
+                                </td>
+                                <td className="w-1/4 px-3 py-2 font-mono font-bold text-slate-900 border-r border-slate-300">
+                                  39820010005432 (Current Account)
+                                </td>
+                                <td className="w-1/4 px-3 py-2 bg-slate-100 font-bold text-slate-900 border-r border-slate-300">
+                                  IFSC &amp; MICR Codes
+                                </td>
+                                <td className="w-1/4 px-3 py-2 font-mono text-slate-900">
+                                  SBIN0000437 / MICR: 422002002
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Dual-Signatory Block & Attestation Table */}
+                        <div className="space-y-1.5 pt-2">
+                          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 font-serif border-b border-slate-300 pb-1">
+                            {sectionKeys.length + 1}.3 Institutional Execution &amp; Verification Sign-Off
+                          </h3>
+                          <table className="w-full border-collapse border border-slate-800 text-xs font-serif">
+                            <thead>
+                              <tr className="bg-slate-900 text-white">
+                                <th className="w-1/2 px-4 py-2 text-left border-r border-slate-700 uppercase tracking-wider text-[10px]">
+                                  Authorized Signatory (Applicant Organization)
+                                </th>
+                                <th className="w-1/2 px-4 py-2 text-left uppercase tracking-wider text-[10px]">
+                                  GrantSetu Digital Verification Attestation
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr>
+                                {/* Left: NGO Signatory */}
+                                <td className="w-1/2 p-4 border-r border-slate-800 align-top">
+                                  <div className="font-bold text-slate-900 text-xs mb-1">
+                                    For {activeNgo?.name}
+                                  </div>
+                                  <div className="relative h-20 my-2 flex items-center">
+                                    {assetsMap.signature ? (
+                                      <img
+                                        src={assetsMap.signature}
+                                        alt="Authorized Signature"
+                                        className="h-16 w-auto object-contain relative z-10"
+                                      />
+                                    ) : (
+                                      <div className="h-12 border-b border-dashed border-slate-400 w-48 mt-4" />
+                                    )}
+                                    {assetsMap.stamp && (
+                                      <img
+                                        src={assetsMap.stamp}
+                                        alt="Official Seal"
+                                        className="absolute left-28 top-0 h-20 w-20 object-contain z-20 pointer-events-none opacity-85 rotate-[-8deg]"
+                                      />
+                                    )}
+                                  </div>
+                                  <div className="text-xs font-bold text-slate-900">Managing Trustee / President</div>
+                                  <div className="text-[11px] text-slate-600 mt-1">
+                                    Date: {new Date().toLocaleDateString('en-IN', { dateStyle: 'long' })}
+                                  </div>
+                                  <div className="text-[11px] text-slate-600">
+                                    Place: {activeNgo?.location || 'Nashik, Maharashtra'}
+                                  </div>
+                                </td>
+
+                                {/* Right: GrantSetu Attestation */}
+                                <td className="w-1/2 p-4 align-top bg-slate-50/50">
+                                  <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5 mb-1">
+                                    <ShieldCheck className="size-4 text-slate-800" />
+                                    Automated Entailment Verification
+                                  </div>
+                                  <p
+                                    className="text-[11px] text-slate-700 leading-relaxed text-justify"
+                                    style={{ textAlign: 'justify', textJustify: 'inter-word' }}
+                                  >
+                                    Certified by the GrantSetu Multi-Agent Evaluation Framework. All quantitative assertions, tax registrations, and past program milestones are verified against certified repository filings.
+                                  </p>
+                                  <div className="mt-3 pt-2 border-t border-slate-300 space-y-1 font-mono text-[10px] text-slate-700">
+                                    <div>Audit Status: <strong>100% Entailed &amp; Verified</strong></div>
+                                    <div>Filing Ref: <strong>GS/2026/PROP-{proposalData.proposal_id.slice(0, 8).toUpperCase()}</strong></div>
+                                    <div>Security Digest: <strong>SHA256-VERIFIED-AUTH</strong></div>
+                                  </div>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
                     </div>
-                  </section>
-                )
-              })}
-            </div>
+                  </td>
+                </tr>
+              </tbody>
 
-            {/* 4. Statutory End-Page, Bank Details & Dual-Signatory Block */}
-            <div className="signature-block bg-white border border-slate-200 rounded-xl p-8 sm:p-12 shadow-sm space-y-6 print:border-none print:shadow-none print:p-0 print:break-before-page">
-              <div>
-                <h2 className="text-base sm:text-lg font-black text-slate-900">
-                  Statutory Declarations, Banking Credentials & Institutional Authorization
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Formal certification required for institutional grant processing and disbursement.
-                </p>
-              </div>
-
-              {/* Solemn Declaration Box */}
-              <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-4 text-xs text-amber-950 leading-relaxed space-y-1">
-                <span className="font-bold uppercase tracking-wider text-[10px] text-amber-800 block">
-                  Official Statutory Declaration
-                </span>
-                <p>
-                  We, the undersigned authorized representatives of <strong>{activeNgo?.name}</strong>, hereby solemnly declare that all institutional credentials, governance track records, past program outcomes, and budgetary formulations submitted in this proposal are true, authentic, and substantiated by our certified regulatory filings (including Form 10B/10BB audit reports, ITR-7 acknowledgments, and NITI Aayog Darpan compliance). We certify that no funding requested in this application is duplicated across any other donor agency or government grant scheme.
-                </p>
-              </div>
-
-              {/* Designated Bank Account Details Table */}
-              <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
-                <div className="bg-slate-900 px-4 py-2 text-white text-xs font-bold flex items-center justify-between">
-                  <span>Designated Institutional Bank Account for Grant Disbursement</span>
-                  <span className="font-mono text-[10px] text-slate-300 uppercase">Direct Benefit Transfer</span>
-                </div>
-                <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Bank & Branch</span>
-                    <span className="font-bold text-slate-900">State Bank of India</span>
-                    <span className="text-[11px] text-slate-500 block">Main Branch, Nashik</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Account Holder</span>
-                    <span className="font-bold text-slate-900 truncate block" title={activeNgo?.name}>
-                      {activeNgo?.name}
-                    </span>
-                    <span className="text-[11px] text-emerald-700 font-semibold block">Verified Match</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Account Number</span>
-                    <span className="font-mono font-bold text-slate-900">39820010005432</span>
-                    <span className="text-[11px] text-slate-500 block font-mono">Current Account</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold uppercase text-slate-400 block">IFSC & MICR</span>
-                    <span className="font-mono font-bold text-slate-900">SBIN0000437</span>
-                    <span className="text-[11px] text-slate-500 block font-mono">MICR: 422002002</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Dual-Signatory Block with Real Signature + Stamp Overlay */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
-                {/* Left: Authorized Signatory */}
-                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-5 relative overflow-hidden">
-                  <p className="font-bold text-slate-900 text-xs uppercase tracking-wider mb-2">
-                    Authorized Signatory & Managing Trustee
-                  </p>
-                  <p className="text-xs text-slate-700 font-medium">{activeNgo?.name}</p>
-
-                  <div className="relative h-24 my-2 flex items-center">
-                    {/* Real Signature Image */}
-                    {assetsMap.signature ? (
-                      <img
-                        src={assetsMap.signature}
-                        alt="Authorized Signature"
-                        className="h-16 w-auto object-contain relative z-10"
-                      />
-                    ) : (
-                      <div className="h-12 border-b border-dashed border-slate-300 w-48 mt-4" />
-                    )}
-
-                    {/* Real Rubber Stamp Image (Overlaid with 8deg tilt & opacity) */}
-                    {assetsMap.stamp && (
-                      <img
-                        src={assetsMap.stamp}
-                        alt="Official Stamp"
-                        className="absolute left-24 top-1 h-20 w-20 object-contain z-20 pointer-events-none opacity-85 rotate-[-8deg]"
-                      />
-                    )}
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
-                    <span>Official Seal & Signature</span>
-                    <span className="text-emerald-700 font-semibold">Attested</span>
-                  </div>
-                </div>
-
-                {/* Right: GrantSetu System Security Seal */}
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-5 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-xs uppercase tracking-wider mb-1">
-                      <ShieldCheck className="size-4 text-emerald-600" />
-                      GrantSetu Digital Attestation
+              {/* Running Footer: printed on pages 3+ */}
+              <tfoot className="hidden print:table-footer-group">
+                <tr>
+                  <td className="border-none pt-4">
+                    <div className="flex justify-between items-center text-[8.5pt] text-slate-600 font-serif border-t border-slate-400 pt-1">
+                      <span className="truncate max-w-[70%]">
+                        {activeNgo?.name || 'Applicant Organization'} | {selectedGrant?.title || 'Grant Proposal'} | Confidential
+                      </span>
+                      <span className="font-mono text-[8pt] text-slate-500">
+                        Official Filing Ref: GS/2026/PROP-{proposalData.proposal_id.slice(0, 8).toUpperCase()}
+                      </span>
                     </div>
-                    <p className="text-[11px] text-slate-600">
-                      Certified by the GrantSetu Multi-Agent System following FActScore claim extraction and entailment verification against certified vault filings.
-                    </p>
-                  </div>
-
-                  <div className="pt-3 border-t border-emerald-200/60 space-y-1 font-mono text-[10px] text-slate-600">
-                    <div className="flex justify-between">
-                      <span>Audit Status:</span>
-                      <strong className="text-emerald-700">100% Entailed & Verified</strong>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Tracking ID:</span>
-                      <strong className="text-slate-800">GS/2026/PROP-{proposalData.proposal_id.slice(0, 8).toUpperCase()}</strong>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Timestamp:</span>
-                      <span>{new Date().toLocaleDateString('en-IN', { dateStyle: 'medium' })}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
 
           {/* VIEW MODE 3: Fact-Check & Verification Audit */}

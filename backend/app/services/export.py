@@ -720,13 +720,13 @@ def _build_statutory_end_page(
     tracking_id = proposal_id[:8].upper() if proposal_id else "VERIFIED"
     today_str = date.today().strftime("%d-%b-%Y")
     seal_cell = [
-        Paragraph("<b>GRANTSETU DIGITAL ATTESTATION</b>", ParagraphStyle("SealHead", parent=_styles["Normal"], fontName=_SANS_BOLD, fontSize=9, leading=12, textColor=colors.HexColor("#065F46"))),
+        Paragraph("<b>GRANTSETU DIGITAL ATTESTATION</b>", ParagraphStyle("SealHead", parent=_styles["Normal"], fontName=_SANS_BOLD, fontSize=9, leading=12, textColor=_NAVY)),
         Paragraph(
             f"Grounding Audit: <b>100% Entailed & Verified</b><br/>"
             f"Tracking Ref: <b>GS/2026/PROP-{tracking_id}</b><br/>"
             f"Certified Date: {today_str}<br/>"
             f"Security Hash: <i>SHA256-{tracking_id}-OK</i>",
-            ParagraphStyle("SealBody", parent=_styles["Normal"], fontName=_SANS, fontSize=8, leading=11, textColor=colors.HexColor("#064E3B")),
+            ParagraphStyle("SealBody", parent=_styles["Normal"], fontName=_SANS, fontSize=8, leading=11, textColor=_SLATE_DARK),
         ),
     ]
 
@@ -744,7 +744,7 @@ def _build_statutory_end_page(
     sign_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (1, 0), _NAVY),
         ("BACKGROUND", (0, 1), (0, 1), _BG_LIGHT),
-        ("BACKGROUND", (1, 1), (1, 1), colors.HexColor("#ECFDF5")),  # soft emerald tint
+        ("BACKGROUND", (1, 1), (1, 1), _BG_LIGHT),
         ("BOX", (0, 0), (-1, -1), 0.8, _BORDER_COLOR),
         ("GRID", (0, 0), (-1, -1), 0.5, _BORDER_COLOR),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
