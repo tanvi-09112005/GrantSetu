@@ -10,6 +10,7 @@ const DocumentVault = lazy(() => import('../components/DocumentVault'))
 const GrantDiscoveryCard = lazy(() => import('../components/GrantDiscoveryCard'))
 const ProposalWorkspace = lazy(() => import('../components/ProposalWorkspace'))
 const NGOProfileCard = lazy(() => import('../components/NGOProfileCard'))
+const EvaluationDashboard = lazy(() => import('../components/EvaluationDashboard'))
 
 export function RegisterPage() {
     const navigate = useNavigate()
@@ -137,4 +138,8 @@ export function NotFoundPage() {
             <Link to="/vault" className={gatePrimary}>Back to the pipeline</Link>
         </GateCard>
     )
+}
+
+export function EvaluationPage() {
+    return <EvaluationDashboard />
 }

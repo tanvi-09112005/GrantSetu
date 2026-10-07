@@ -36,6 +36,15 @@ export default function AppLayout() {
                     </Link>
 
                     <div className="flex items-center gap-3">
+                        <Link
+                            to="/eval"
+                            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 px-3 py-1.5 text-xs font-semibold text-neutral-700 shadow-2xs transition"
+                            title="Phase 6 Evaluation Benchmarks (RAGAS + DeepEval)"
+                        >
+                            <span className="size-2 rounded-full bg-indigo-600 animate-pulse" />
+                            <span>Eval Benchmarks</span>
+                        </Link>
+
                         {health && (
                             <div className="hidden lg:flex items-center gap-2 rounded-full bg-neutral-100 px-3 py-1 text-xs text-neutral-600">
                                 <span className="size-2 rounded-full bg-emerald-500" />
@@ -84,7 +93,7 @@ export default function AppLayout() {
             </header>
 
             <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-6">
-                {!onRegister && (
+                {!onRegister && pathname !== '/eval' && (
                     <>
                         <NgoStatusBanner />
                         <PipelineStepper docCount={docCount} />

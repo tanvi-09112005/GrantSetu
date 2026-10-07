@@ -3,7 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import AppLayout from './layouts/AppLayout'
 import { RequireAuth, RequireOrg, RequireVerified } from './components/RouteGuards'
 import {
-    GrantsPage, NotFoundPage, ProfilePage, RegisterPage, VaultPage, WorkspacePage,
+    EvaluationPage, GrantsPage, NotFoundPage, ProfilePage, RegisterPage, VaultPage, WorkspacePage,
 } from './pages/Pages'
 
 export default function AppRoutes() {
@@ -12,6 +12,7 @@ export default function AppRoutes() {
             <Route element={<AppLayout />}>
                 <Route index element={<Navigate to="/vault" replace />} />
                 <Route path="register" element={<RegisterPage />} />
+                <Route path="eval" element={<EvaluationPage />} />
 
                 <Route element={<RequireAuth />}>
                     <Route path="profile" element={<ProfilePage />} />

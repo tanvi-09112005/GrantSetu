@@ -164,3 +164,9 @@ export const verifyNgo = (ngoId, darpanFile) => {
     .post(`/ngo/${ngoId}/verify`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
     .then((r) => r.data)
 }
+
+// Phase 6 Evaluation Suite (RAGAS + DeepEval + Fabrication A/B)
+export const listEvalRuns = () => api.get('/eval/runs').then((r) => r.data)
+export const getEvalRun = (runId) => api.get(`/eval/runs/${runId}`).then((r) => r.data)
+export const triggerEvalRun = (payload = { run_type: 'all', sample_size: 3 }) =>
+  api.post('/eval/run', payload).then((r) => r.data)

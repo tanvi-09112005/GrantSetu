@@ -265,8 +265,9 @@ class ApplicationOut(BaseModel):
 
 # --- Evaluation --------------------------------------------------------------
 class EvalRunRequest(BaseModel):
-    run_type: Literal["ragas", "deepeval", "fabrication_rate"]
-    sample_size: int | None = None
+    run_type: Literal["ragas", "deepeval", "fabrication_rate", "all"] = "all"
+    sample_size: int = 3
+    proposal_id: str | None = None
     notes: str | None = None
 
 
