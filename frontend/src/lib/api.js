@@ -126,6 +126,9 @@ export const dropClaim = (proposalId, sectionKey, claimText) =>
     claim_text: claimText,
   }).then((r) => r.data)
 
+export const attachProof = (proposalId, payload) =>
+  api.post(`/proposals/${proposalId}/attach-proof`, payload).then((r) => r.data)
+
 export const getEvidenceChunk = (proposalId, chunkId) =>
   api.get(`/proposals/${proposalId}/evidence-chunk/${chunkId}`).then((r) => r.data)
 

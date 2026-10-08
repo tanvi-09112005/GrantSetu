@@ -240,7 +240,7 @@ class ApplySectionRevisionRequest(BaseModel):
 class EditClaimRequest(BaseModel):
     """Manually update an unsupported claim sentence in the proposal."""
 
-    section_key: str
+    section_key: str | None = None
     old_text: str
     new_text: str
 
@@ -248,8 +248,18 @@ class EditClaimRequest(BaseModel):
 class DropClaimRequest(BaseModel):
     """Remove a hallucinated/unsupported claim sentence from the proposal."""
 
-    section_key: str
+    section_key: str | None = None
     claim_text: str
+
+
+class AttachProofRequest(BaseModel):
+    """Attach document vault proof to corroborate an unsupported claim."""
+
+    claim_text: str
+    section_key: str | None = None
+    document_id: str | None = None
+    document_name: str | None = None
+    proof_notes: str | None = None
 
 
 # --- Applications ------------------------------------------------------------

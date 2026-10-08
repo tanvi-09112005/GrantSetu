@@ -18,6 +18,7 @@ from app.graph.nodes.extract_claims import extract_claims
 from app.graph.nodes.verify import verify_claims
 from app.models.schemas import (
     ApplySectionRevisionRequest,
+    AttachProofRequest,
     BatchGenerateRequest,
     ClaimVerdict,
     DropClaimRequest,
@@ -124,6 +125,156 @@ def _fetch_verification_results(proposal_id: str) -> tuple[list[ClaimVerdict], f
     return verdicts, rate
 
 
+def _cleanup_text(text: str, is_deletion: bool) -> str:
+    """Normalize whitespace and remove leftover punctuation after editing or dropping sentences."""
+    if is_deletion:
+        text = re.sub(r"[ \t]{2,}", " ", text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        text = re.sub(r"\.\s*\.", ".", text)
+    return text.strip()
+
+
+def _find_and_replace_sentence(text: str, target: str, replacement: str) -> tuple[str, bool]:
+    """Robustly replace or drop a target claim sentence/row in section markdown text.
+
+    Tries exact match, whitespace normalization, markdown-stripped line match, and token-overlap match.
+    """
+    if not text:
+        return text, False
+    target = target.strip()
+    if not target:
+        return text, False
+
+    # 1. Exact match
+    if target in text:
+        new_text = text.replace(target, replacement, 1)
+        return _cleanup_text(new_text, replacement == ""), True
+
+    # 2. Whitespace-normalized regex
+    tokens = [re.escape(t) for t in target.split() if t.strip()]
+    if tokens:
+        pattern = re.compile(r"\s+".join(tokens), re.IGNORECASE)
+        match = pattern.search(text)
+        if match:
+            new_text = text[:match.start()] + replacement + text[match.end():]
+            return _cleanup_text(new_text, replacement == ""), True
+
+    # 3. Strip markdown syntax from target and search line-by-line (for tables and lists)
+    clean_target = re.sub(r"[\*_`|#]", " ", target).strip()
+    target_words = set(re.findall(r"\w+", clean_target.lower()))
+
+    lines = text.split("\n")
+    best_line_idx = -1
+    best_score = 0.0
+
+    for idx, line in enumerate(lines):
+        line_clean = re.sub(r"[\*_`|#]", " ", line).strip()
+        line_words = set(re.findall(r"\w+", line_clean.lower()))
+        if not line_words or not target_words:
+            continue
+        intersection = len(target_words & line_words)
+        union = len(target_words | line_words)
+        score = intersection / union if union > 0 else 0
+        if score > best_score:
+            best_score = score
+            best_line_idx = idx
+
+    if best_score >= 0.35 and best_line_idx >= 0:
+        if replacement:
+            lines[best_line_idx] = replacement
+        else:
+            lines.pop(best_line_idx)
+        return _cleanup_text("\n".join(lines), replacement == ""), True
+
+    # 4. Try matching sentences
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    best_sent_idx = -1
+    best_sent_score = 0.0
+
+    for idx, sent in enumerate(sentences):
+        sent_clean = re.sub(r"[\*_`|#]", " ", sent).strip()
+        sent_words = set(re.findall(r"\w+", sent_clean.lower()))
+        if not sent_words or not target_words:
+            continue
+        score = len(target_words & sent_words) / len(target_words | sent_words)
+        if score > best_sent_score:
+            best_sent_score = score
+            best_sent_idx = idx
+
+    if best_sent_score >= 0.35 and best_sent_idx >= 0:
+        if replacement:
+            sentences[best_sent_idx] = replacement
+        else:
+            sentences.pop(best_sent_idx)
+        return _cleanup_text(" ".join([s for s in sentences if s.strip()]), replacement == ""), True
+
+    return text, False
+
+
+def _find_claim_row(proposal_id: str, claim_text: str, section_key: str | None = None) -> dict | None:
+    """Locate an existing claim row in verification_results with exact or fuzzy token matching."""
+    if not claim_text:
+        return None
+    claim_text_clean = claim_text.strip()
+
+    def _is_valid(r):
+        return isinstance(r, dict) and "id" in r and r.get("id") is not None
+
+    # 1. Exact match with section_key
+    if section_key:
+        row = pool.fetch_one(
+            "select id, claim_text, section_key, verdict from verification_results where proposal_id = %s and section_key = %s and claim_text = %s",
+            (proposal_id, section_key, claim_text_clean),
+        )
+        if _is_valid(row):
+            return row
+
+    # 2. Exact match without section_key
+    row = pool.fetch_one(
+        "select id, claim_text, section_key, verdict from verification_results where proposal_id = %s and claim_text = %s",
+        (proposal_id, claim_text_clean),
+    )
+    if _is_valid(row):
+        return row
+
+    # 3. ILIKE match
+    row = pool.fetch_one(
+        "select id, claim_text, section_key, verdict from verification_results where proposal_id = %s and claim_text ilike %s limit 1",
+        (proposal_id, f"%{claim_text_clean[:40]}%"),
+    )
+    if _is_valid(row):
+        return row
+
+    # 4. Token overlap match across all claims of this proposal
+    all_rows = pool.fetch_all(
+        "select id, claim_text, section_key, verdict from verification_results where proposal_id = %s",
+        (proposal_id,),
+    )
+    if not all_rows or not isinstance(all_rows, (list, tuple)):
+        return None
+
+    target_tokens = set(re.findall(r"\w+", claim_text_clean.lower()))
+    best_row = None
+    best_score = 0.0
+
+    for r in all_rows:
+        if not _is_valid(r):
+            continue
+        r_text = (r.get("claim_text") or "").lower()
+        r_tokens = set(re.findall(r"\w+", r_text))
+        if not r_tokens or not target_tokens:
+            continue
+        score = len(target_tokens & r_tokens) / len(target_tokens | r_tokens)
+        if score > best_score:
+            best_score = score
+            best_row = r
+
+    if best_score >= 0.35:
+        return best_row
+
+    return None
+
+
 def _verify_single_section_claims(
     proposal_id: str,
     section_key: str,
@@ -151,12 +302,20 @@ def _verify_single_section_claims(
         })
         results = verify_state.get("verification_results", [])
 
+        # Check for any manual claims in this section to preserve them
+        manual_section_entries = pool.fetch_all(
+            "select section_key, claim_text, verdict, evidence_span, evidence_chunk_id, confidence, model_used from verification_results where proposal_id = %s and section_key = %s and model_used in ('manual-edit', 'manual-proof')",
+            (proposal_id, section_key),
+        )
+        manual_map = {m["claim_text"].strip().lower(): m for m in (manual_section_entries or [])}
+
         # Delete existing audit rows for this specific section
         pool.execute(
             "delete from verification_results where proposal_id = %s and section_key = %s",
             (proposal_id, section_key),
         )
 
+        seen_in_sec = set()
         for r in results:
             ev_chunk_id = r.get("evidence_chunk_id")
             if ev_chunk_id:
@@ -164,13 +323,51 @@ def _verify_single_section_claims(
                     uuid.UUID(str(ev_chunk_id))
                 except Exception:
                     ev_chunk_id = None
+
+            c_txt = r["claim_text"]
+            c_verdict = r["verdict"]
+            c_ev = r.get("evidence_span")
+            c_conf = r.get("confidence", 0.9)
+            c_model = "gemini-3.6-flash"
+
+            c_lower = c_txt.strip().lower()
+            if c_lower in manual_map:
+                m = manual_map[c_lower]
+                c_verdict = m.get("verdict") or "supported"
+                c_ev = m.get("evidence_span") or c_ev
+                if m.get("evidence_chunk_id"):
+                    ev_chunk_id = m.get("evidence_chunk_id")
+                c_conf = 1.0
+                c_model = m.get("model_used") or "manual-edit"
+
+            seen_in_sec.add(c_lower)
+
             pool.execute(
                 """
                 insert into verification_results (proposal_id, section_key, claim_text, verdict, evidence_span, evidence_chunk_id, confidence, model_used)
-                values (%s, %s, %s, %s, %s, %s, %s, 'gemini-3.6-flash')
+                values (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
-                (proposal_id, section_key, r["claim_text"], r["verdict"], r.get("evidence_span"), ev_chunk_id, r.get("confidence", 0.9)),
+                (proposal_id, section_key, c_txt, c_verdict, c_ev, ev_chunk_id, c_conf, c_model),
             )
+
+        for m in (manual_section_entries or []):
+            m_lower = m["claim_text"].strip().lower()
+            if m_lower not in seen_in_sec and m.get("claim_text", "") in section_content:
+                pool.execute(
+                    """
+                    insert into verification_results (proposal_id, section_key, claim_text, verdict, evidence_span, evidence_chunk_id, confidence, model_used)
+                    values (%s, %s, %s, %s, %s, %s, 1.0, %s)
+                    """,
+                    (
+                        proposal_id,
+                        section_key,
+                        m["claim_text"],
+                        m.get("verdict") or "supported",
+                        m.get("evidence_span"),
+                        m.get("evidence_chunk_id"),
+                        m.get("model_used") or "manual-edit",
+                    ),
+                )
 
         logger.info(
             "Targeted section verification completed for proposal %s section %s: %d claims re-audited",
@@ -476,8 +673,16 @@ def verify_proposal_claims(
     results = verify_state.get("verification_results", [])
     rate = verify_state.get("fabrication_rate", 0.0)
 
-    # 3. Persist to verification_results table (replace older audit)
+    # 3. Persist to verification_results table (replace older audit, preserving manual edits / proofs)
+    manual_entries = pool.fetch_all(
+        "select section_key, claim_text, verdict, evidence_span, evidence_chunk_id, confidence, model_used from verification_results where proposal_id = %s and model_used in ('manual-edit', 'manual-proof')",
+        (proposal_id,),
+    )
+    manual_by_text = {m["claim_text"].strip().lower(): m for m in (manual_entries or [])}
+
     pool.execute("delete from verification_results where proposal_id = %s", (proposal_id,))
+
+    seen_claims = set()
     for r in results:
         ev_chunk_id = r.get("evidence_chunk_id")
         if ev_chunk_id:
@@ -485,21 +690,67 @@ def verify_proposal_claims(
                 uuid.UUID(str(ev_chunk_id))
             except Exception:
                 ev_chunk_id = None
+
+        c_text = r["claim_text"]
+        c_key = r.get("section") or r.get("section_key")
+        c_verdict = r["verdict"]
+        c_evidence = r.get("evidence_span")
+        c_conf = r.get("confidence", 0.95)
+        c_model = "gemini-3.6-flash"
+
+        # Check if user previously verified or attached proof for this claim
+        c_lower = c_text.strip().lower()
+        if c_lower in manual_by_text:
+            m = manual_by_text[c_lower]
+            c_verdict = m.get("verdict") or "supported"
+            c_evidence = m.get("evidence_span") or c_evidence
+            if m.get("evidence_chunk_id"):
+                ev_chunk_id = m.get("evidence_chunk_id")
+            c_conf = 1.0
+            c_model = m.get("model_used") or "manual-edit"
+
+        seen_claims.add(c_lower)
+
         pool.execute(
             """
             insert into verification_results (proposal_id, section_key, claim_text, verdict, evidence_span, evidence_chunk_id, confidence, model_used)
-            values (%s, %s, %s, %s, %s, %s, %s, 'gemini-3.6-flash')
+            values (%s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 proposal_id,
-                r.get("section") or r.get("section_key"),
-                r["claim_text"],
-                r["verdict"],
-                r.get("evidence_span"),
+                c_key,
+                c_text,
+                c_verdict,
+                c_evidence,
                 ev_chunk_id,
-                r.get("confidence", 0.95),
+                c_conf,
+                c_model,
             ),
         )
+
+    # Also keep any manual claims that are still present in proposal text
+    for m in (manual_entries or []):
+        m_lower = m["claim_text"].strip().lower()
+        if m_lower not in seen_claims:
+            m_sec = m.get("section_key")
+            m_text = m.get("claim_text", "")
+            exists_in_sections = any(m_text in str(s_body) for s_body in sections.values())
+            if exists_in_sections:
+                pool.execute(
+                    """
+                    insert into verification_results (proposal_id, section_key, claim_text, verdict, evidence_span, evidence_chunk_id, confidence, model_used)
+                    values (%s, %s, %s, %s, %s, %s, 1.0, %s)
+                    """,
+                    (
+                        proposal_id,
+                        m_sec,
+                        m_text,
+                        m.get("verdict") or "supported",
+                        m.get("evidence_span"),
+                        m.get("evidence_chunk_id"),
+                        m.get("model_used") or "manual-edit",
+                    ),
+                )
 
     pool.execute(
         "update proposals set status = 'verified', updated_at = now() where id = %s",
@@ -969,7 +1220,7 @@ def edit_claim(
     payload: EditClaimRequest,
     _user: dict | None = Depends(maybe_user),
 ) -> ProposalResponse:
-    """Manually update an unsupported or imprecise claim in a proposal section."""
+    """Manually update an unsupported or imprecise claim sentence in the proposal."""
     row = pool.fetch_one(
         """
         select p.id as proposal_id, p.application_id, p.version, p.sections, p.status,
@@ -988,12 +1239,6 @@ def edit_claim(
     if not row:
         raise HTTPException(status_code=404, detail="Proposal not found")
 
-    row["tax_exemption"] = (
-        "12A & 80G Certified"
-        if (row.get("reg_12a") or row.get("reg_80g") or row.get("has_12a") or row.get("has_80g"))
-        else "Registered Non-Profit"
-    )
-
     sections = row["sections"]
     if isinstance(sections, str):
         try:
@@ -1001,31 +1246,35 @@ def edit_claim(
         except Exception:
             sections = {}
 
-    sec_key = payload.section_key
-    if sec_key not in sections:
-        for k in sections.keys():
-            if k == sec_key or k.lower() == sec_key.lower():
-                sec_key = k
-                break
-        else:
-            raise HTTPException(status_code=400, detail=f"Section '{payload.section_key}' not found in proposal.")
-
-    current_text = sections.get(sec_key, "")
     old_target = payload.old_text.strip()
     new_target = payload.new_text.strip()
+    sec_key = payload.section_key
 
-    if old_target in current_text:
-        updated_text = current_text.replace(old_target, new_target, 1)
+    # 1. Identify section holding the sentence
+    target_sec = None
+    if sec_key and sec_key in sections:
+        target_sec = sec_key
     else:
-        pattern = re.escape(old_target)
-        pattern = re.sub(r'\\s+', r'\\s+', pattern)
-        matched = re.search(pattern, current_text, flags=re.IGNORECASE)
-        if matched:
-            updated_text = current_text[:matched.start()] + new_target + current_text[matched.end():]
-        else:
-            updated_text = current_text + "\n\n" + new_target
+        for k in sections.keys():
+            if sec_key and k.lower() == sec_key.lower():
+                target_sec = k
+                break
+        if not target_sec:
+            for k, text in sections.items():
+                if old_target in text or any(w in text for w in old_target.split()[:4]):
+                    target_sec = k
+                    break
 
-    sections[sec_key] = updated_text
+    if not target_sec:
+        target_sec = sec_key or (list(sections.keys())[0] if sections else "project_summary")
+
+    # 2. Update section markdown
+    current_text = sections.get(target_sec, "")
+    updated_text, matched = _find_and_replace_sentence(current_text, old_target, new_target)
+    if not matched:
+        updated_text = current_text + "\n\n" + new_target
+
+    sections[target_sec] = updated_text
     new_version = int(row.get("version") or 1) + 1
 
     pool.execute(
@@ -1033,13 +1282,33 @@ def edit_claim(
         (json.dumps(sections), new_version, proposal_id),
     )
 
-    verdicts, rate = _verify_single_section_claims(
-        proposal_id=proposal_id,
-        section_key=sec_key,
-        section_content=updated_text,
-        ngo_id=str(row["ngo_id"]),
-        ngo_profile=row,
-    )
+    # 3. Update ONLY this claim row in verification_results (avoid re-extraction / churn)
+    claim_row = _find_claim_row(proposal_id, old_target, target_sec)
+    claim_id = claim_row.get("id") if (claim_row and isinstance(claim_row, dict)) else None
+    if claim_id:
+        pool.execute(
+            """
+            update verification_results
+            set claim_text = %s,
+                section_key = %s,
+                verdict = 'supported',
+                evidence_span = %s,
+                confidence = 1.0,
+                model_used = 'manual-edit'
+            where id = %s
+            """,
+            (new_target, target_sec, "Manually verified and updated by NGO", claim_id),
+        )
+    else:
+        pool.execute(
+            """
+            insert into verification_results (proposal_id, section_key, claim_text, verdict, evidence_span, confidence, model_used)
+            values (%s, %s, %s, 'supported', %s, 1.0, 'manual-edit')
+            """,
+            (proposal_id, target_sec, new_target, "Manually verified and updated by NGO"),
+        )
+
+    verdicts, rate = _fetch_verification_results(proposal_id)
 
     return ProposalResponse(
         proposal_id=proposal_id,
@@ -1080,12 +1349,6 @@ def drop_claim(
     if not row:
         raise HTTPException(status_code=404, detail="Proposal not found")
 
-    row["tax_exemption"] = (
-        "12A & 80G Certified"
-        if (row.get("reg_12a") or row.get("reg_80g") or row.get("has_12a") or row.get("has_80g"))
-        else "Registered Non-Profit"
-    )
-
     sections = row["sections"]
     if isinstance(sections, str):
         try:
@@ -1093,47 +1356,51 @@ def drop_claim(
         except Exception:
             sections = {}
 
-    sec_key = payload.section_key
-    if sec_key not in sections:
-        for k in sections.keys():
-            if k == sec_key or k.lower() == sec_key.lower():
-                sec_key = k
-                break
-        else:
-            raise HTTPException(status_code=400, detail=f"Section '{payload.section_key}' not found in proposal.")
-
-    current_text = sections.get(sec_key, "")
     target = payload.claim_text.strip()
+    sec_key = payload.section_key
 
-    if target in current_text:
-        updated_text = current_text.replace(target, "", 1)
+    # 1. Identify section holding the sentence
+    target_sec = None
+    if sec_key and sec_key in sections:
+        target_sec = sec_key
     else:
-        pattern = re.escape(target)
-        pattern = re.sub(r'\\s+', r'\\s+', pattern)
-        matched = re.search(pattern, current_text, flags=re.IGNORECASE)
-        if matched:
-            updated_text = current_text[:matched.start()] + current_text[matched.end():]
-        else:
-            updated_text = current_text
+        for k in sections.keys():
+            if sec_key and k.lower() == sec_key.lower():
+                target_sec = k
+                break
+        if not target_sec:
+            for k, text in sections.items():
+                if target in text or any(w in text for w in target.split()[:4]):
+                    target_sec = k
+                    break
 
-    updated_text = re.sub(r'\s{2,}', ' ', updated_text)
-    updated_text = re.sub(r'\.\s*\.', '.', updated_text).strip()
+    # 2. Remove sentence from section markdown
+    if target_sec and target_sec in sections:
+        current_text = sections[target_sec]
+        updated_text, _ = _find_and_replace_sentence(current_text, target, "")
+        sections[target_sec] = updated_text
 
-    sections[sec_key] = updated_text
     new_version = int(row.get("version") or 1) + 1
-
     pool.execute(
         "update proposals set sections = %s, version = %s, updated_at = now() where id = %s",
         (json.dumps(sections), new_version, proposal_id),
     )
 
-    verdicts, rate = _verify_single_section_claims(
-        proposal_id=proposal_id,
-        section_key=sec_key,
-        section_content=updated_text,
-        ngo_id=str(row["ngo_id"]),
-        ngo_profile=row,
-    )
+    # 3. Delete ONLY this claim row from verification_results
+    claim_row = _find_claim_row(proposal_id, target, target_sec)
+    claim_id = claim_row.get("id") if (claim_row and isinstance(claim_row, dict)) else None
+    if claim_id:
+        pool.execute(
+            "delete from verification_results where id = %s",
+            (claim_id,),
+        )
+    else:
+        pool.execute(
+            "delete from verification_results where proposal_id = %s and claim_text = %s",
+            (proposal_id, target),
+        )
+
+    verdicts, rate = _fetch_verification_results(proposal_id)
 
     return ProposalResponse(
         proposal_id=proposal_id,
@@ -1146,6 +1413,99 @@ def drop_claim(
         fabrication_rate=rate,
         revision_count=max(0, new_version - 1),
         status="revised",
+    )
+
+
+@router.post("/{proposal_id}/attach-proof", response_model=ProposalResponse)
+def attach_proof(
+    proposal_id: str,
+    payload: AttachProofRequest,
+    _user: dict | None = Depends(maybe_user),
+) -> ProposalResponse:
+    """Attach Document Vault proof to corroborate an unsupported claim."""
+    row = pool.fetch_one(
+        """
+        select p.id as proposal_id, p.application_id, p.version, p.sections, p.status,
+               a.ngo_id, a.grant_id,
+               g.title as grant_title, g.funder_name,
+               n.name as ngo_name, n.mission as ngo_mission,
+               n.darpan_id, n.registered_on, n.reg_12a, n.reg_80g, n.fcra_status, n.location
+        from proposals p
+        join applications a on a.id = p.application_id
+        join grants g on g.id = a.grant_id
+        join ngo_profiles n on n.id = a.ngo_id
+        where p.id = %s
+        """,
+        (proposal_id,),
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+
+    sections = row["sections"]
+    if isinstance(sections, str):
+        try:
+            sections = json.loads(sections)
+        except Exception:
+            sections = {}
+
+    target = payload.claim_text.strip()
+    sec_key = payload.section_key
+
+    # Find matching claim row in verification_results
+    claim_row = _find_claim_row(proposal_id, target, sec_key)
+    claim_id = claim_row.get("id") if (claim_row and isinstance(claim_row, dict)) else None
+
+    # Find evidence chunk if document_id provided
+    chunk_id = None
+    if payload.document_id:
+        try:
+            chunk = pool.fetch_one(
+                "select id from document_chunks where document_id = %s order by chunk_index asc limit 1",
+                (payload.document_id,),
+            )
+            if chunk:
+                chunk_id = chunk["id"]
+        except Exception as e:
+            logger.warning("Could not resolve chunk for document %s: %s", payload.document_id, e)
+
+    doc_name = payload.document_name or "Verified NGO Vault Document"
+    evidence_note = payload.proof_notes or f"Corroborated by verified vault document: {doc_name}"
+
+    if claim_id:
+        pool.execute(
+            """
+            update verification_results
+            set verdict = 'supported',
+                evidence_span = %s,
+                evidence_chunk_id = %s,
+                confidence = 1.0,
+                model_used = 'manual-proof'
+            where id = %s
+            """,
+            (evidence_note, chunk_id, claim_id),
+        )
+    else:
+        pool.execute(
+            """
+            insert into verification_results (proposal_id, section_key, claim_text, verdict, evidence_span, evidence_chunk_id, confidence, model_used)
+            values (%s, %s, %s, 'supported', %s, %s, 1.0, 'manual-proof')
+            """,
+            (proposal_id, sec_key, target, evidence_note, chunk_id),
+        )
+
+    verdicts, rate = _fetch_verification_results(proposal_id)
+
+    return ProposalResponse(
+        proposal_id=proposal_id,
+        application_id=str(row["application_id"]),
+        grant_id=str(row["grant_id"]),
+        ngo_id=str(row["ngo_id"]),
+        template_type="standard",
+        sections=sections,
+        verification_results=verdicts,
+        fabrication_rate=rate,
+        revision_count=max(0, int(row.get("version") or 1) - 1),
+        status=row.get("status") or "generated",
     )
 
 

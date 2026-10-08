@@ -22,10 +22,8 @@ from app.graph.nodes.verify import _find_best_chunk
 
 
 def test_edit_claim_updates_section_and_triggers_verification():
-    """Verify edit_claim replaces unsupported claim text, increments proposal version, and re-verifies section."""
-    with patch("app.api.proposals.pool") as mock_pool, \
-         patch("app.api.proposals._verify_single_section_claims") as mock_verify:
-
+    """Verify edit_claim replaces unsupported claim text, increments proposal version, and updates claim in-place."""
+    with patch("app.api.proposals.pool") as mock_pool:
         mock_pool.fetch_one.return_value = {
             "proposal_id": "prop-123",
             "application_id": "app-123",
@@ -49,20 +47,24 @@ def test_edit_claim_updates_section_and_triggers_verification():
             "location": "Nashik, Maharashtra",
         }
 
-        mock_verify.return_value = (
-            [
-                ClaimVerdict(
-                    claim_text="The dropout rate is 28% among adolescents according to UDISE+ data.",
-                    verdict="supported",
-                    evidence_span="According to UDISE+ 2022-23, adolescent dropout is 28.2%",
-                    confidence=0.98,
-                    document_name="Samarpan_Annual_Report_2023-24.pdf",
-                    doc_type="annual_report",
-                    chunk_section="Educational Impact",
-                )
-            ],
-            0.0,
-        )
+        mock_pool.fetch_all.return_value = [
+            {
+                "id": str(uuid.uuid4()),
+                "proposal_id": "prop-123",
+                "section_key": "problem_statement",
+                "claim_text": "The dropout rate is 28% among adolescents according to UDISE+ data.",
+                "verdict": "supported",
+                "evidence_span": "Manually verified and updated by NGO",
+                "evidence_chunk_id": None,
+                "confidence": 1.0,
+                "model_used": "manual-edit",
+                "document_name": None,
+                "document_id": None,
+                "doc_type": None,
+                "chunk_section": "Compliance Dossier",
+                "chunk_text": "Manually verified and updated by NGO",
+            }
+        ]
 
         req = EditClaimRequest(
             section_key="problem_statement",
@@ -87,10 +89,8 @@ def test_edit_claim_updates_section_and_triggers_verification():
 
 
 def test_drop_claim_removes_sentence_and_reverifies():
-    """Verify drop_claim removes unsupported sentence from section, cleans whitespace, and re-verifies."""
-    with patch("app.api.proposals.pool") as mock_pool, \
-         patch("app.api.proposals._verify_single_section_claims") as mock_verify:
-
+    """Verify drop_claim removes unsupported sentence from section, cleans whitespace, and drops claim row."""
+    with patch("app.api.proposals.pool") as mock_pool:
         mock_pool.fetch_one.return_value = {
             "proposal_id": "prop-123",
             "application_id": "app-123",
@@ -113,7 +113,7 @@ def test_drop_claim_removes_sentence_and_reverifies():
             "location": "Nashik, Maharashtra",
         }
 
-        mock_verify.return_value = ([], 0.0)
+        mock_pool.fetch_all.return_value = []
 
         req = DropClaimRequest(
             section_key="problem_statement",
@@ -126,7 +126,87 @@ def test_drop_claim_removes_sentence_and_reverifies():
         assert "50,00,000" not in resp.sections["problem_statement"]
         assert "Valid needs assessment" in resp.sections["problem_statement"]
         assert "Additional ongoing community work." in resp.sections["problem_statement"]
+        assert "50,00,000" not in resp.sections["problem_statement"]
         assert "50,000 teachers" not in resp.sections["problem_statement"]
+
+
+def test_attach_proof_corroborates_unsupported_claim():
+    """Verify attach_proof updates claim to supported with document vault citation."""
+    with patch("app.api.proposals.pool") as mock_pool:
+        doc_uuid = str(uuid.uuid4())
+        chunk_uuid = str(uuid.uuid4())
+
+        mock_pool.fetch_one.side_effect = [
+            # 1. Proposal row
+            {
+                "proposal_id": "prop-123",
+                "application_id": "app-123",
+                "version": 1,
+                "sections": json.dumps({"budget_breakdown": "Total direct program costs: INR 45,00,000."}),
+                "status": "verified",
+                "ngo_id": "ngo-123",
+                "grant_id": "grant-123",
+                "grant_title": "Tribal Welfare Scheme",
+                "funder_name": "Ministry of Tribal Affairs",
+                "ngo_name": "Samarpan Foundation",
+                "ngo_mission": "Tribal education and welfare",
+                "darpan_id": "MH/2018/0192837",
+                "registered_on": "2018-04-12",
+                "reg_12a": "12A-123",
+                "reg_80g": "80G-123",
+                "fcra_status": "never_held",
+                "location": "Nashik, Maharashtra",
+            },
+            # 2. Existing claim in verification_results
+            {
+                "id": str(uuid.uuid4()),
+                "claim_text": "Total direct program costs: INR 45,00,000.",
+                "section_key": "budget_breakdown",
+                "verdict": "unsupported",
+            },
+            # 3. Chunk lookup
+            {
+                "id": chunk_uuid,
+            },
+        ]
+
+        mock_pool.fetch_all.return_value = [
+            {
+                "id": str(uuid.uuid4()),
+                "proposal_id": "prop-123",
+                "section_key": "budget_breakdown",
+                "claim_text": "Total direct program costs: INR 45,00,000.",
+                "verdict": "supported",
+                "evidence_span": "Audited in FY23 Financial Statement, Page 12",
+                "evidence_chunk_id": chunk_uuid,
+                "confidence": 1.0,
+                "model_used": "manual-proof",
+                "document_name": "Audited_Financials_FY23.pdf",
+                "document_id": doc_uuid,
+                "doc_type": "audit_report",
+                "chunk_section": "Financial Summary",
+                "chunk_text": "Total program expenditure: INR 45,00,000.",
+            }
+        ]
+
+        from app.models.schemas import AttachProofRequest
+        from app.api.proposals import attach_proof
+
+        req = AttachProofRequest(
+            claim_text="Total direct program costs: INR 45,00,000.",
+            section_key="budget_breakdown",
+            document_id=doc_uuid,
+            document_name="Audited_Financials_FY23.pdf",
+            proof_notes="Audited in FY23 Financial Statement, Page 12",
+        )
+
+        resp = attach_proof("prop-123", req, _user=None)
+
+        assert isinstance(resp, ProposalResponse)
+        assert len(resp.verification_results) == 1
+        assert resp.verification_results[0].verdict == "supported"
+        assert resp.fabrication_rate == 0.0
+        assert "Audited in FY23 Financial Statement" in resp.verification_results[0].evidence_span
 
 
 def test_get_evidence_chunk_retrieves_vault_metadata():

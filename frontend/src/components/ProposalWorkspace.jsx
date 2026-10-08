@@ -45,6 +45,9 @@ import {
   exportProposalDocx,
   editClaim,
   dropClaim,
+  attachProof,
+  listDocuments,
+  uploadDocument,
 } from '../lib/api'
 import SectionInlineRevision from './SectionInlineRevision'
 import BudgetSanityCards from './BudgetSanityCards'
@@ -103,6 +106,17 @@ export default function ProposalWorkspace({
   const [droppingClaim, setDroppingClaim] = useState(null)
   const [isDroppingClaimSubmitting, setIsDroppingClaimSubmitting] = useState(false)
   const [actionSuccessMessage, setActionSuccessMessage] = useState(null)
+
+  // Attach Document Proof modal state
+  const [attachingProofClaim, setAttachingProofClaim] = useState(null)
+  const [isAttachingProofSubmitting, setIsAttachingProofSubmitting] = useState(false)
+  const [proofSourceTab, setProofSourceTab] = useState('vault') // 'vault' | 'upload'
+  const [vaultDocuments, setVaultDocuments] = useState([])
+  const [isLoadingVaultDocuments, setIsLoadingVaultDocuments] = useState(false)
+  const [selectedVaultDocId, setSelectedVaultDocId] = useState('')
+  const [proofNotes, setProofNotes] = useState('')
+  const [proofUploadFile, setProofUploadFile] = useState(null)
+  const [proofDocType, setProofDocType] = useState('audit_report')
 
   // Load institutional branding assets from vault (logo, stamp, signature)
   useEffect(() => {
@@ -428,8 +442,75 @@ export default function ProposalWorkspace({
     }
   }
 
-  const handleAttachProof = () => {
-    window.location.href = '/vault'
+  const handleAttachProofOpen = (item) => {
+    setAttachingProofClaim(item)
+    setSelectedVaultDocId('')
+    setProofNotes('')
+    setProofUploadFile(null)
+    setProofDocType('audit_report')
+    setProofSourceTab('vault')
+
+    const ngoId = activeNgo?.id
+    if (ngoId) {
+      setIsLoadingVaultDocuments(true)
+      listDocuments(ngoId)
+        .then((docs) => {
+          if (Array.isArray(docs)) {
+            setVaultDocuments(docs)
+            if (docs.length > 0) {
+              setSelectedVaultDocId(docs[0].id)
+            }
+          }
+        })
+        .catch((e) => console.warn('Could not load vault documents:', e))
+        .finally(() => setIsLoadingVaultDocuments(false))
+    }
+  }
+
+  const handleAttachProofConfirm = async () => {
+    if (!proposalData?.proposal_id || !attachingProofClaim) return
+    setIsAttachingProofSubmitting(true)
+    setError(null)
+    try {
+      let docId = selectedVaultDocId
+      let docName = ''
+
+      if (proofSourceTab === 'upload') {
+        if (!proofUploadFile) {
+          setError('Please select a file to upload as proof.')
+          setIsAttachingProofSubmitting(false)
+          return
+        }
+        const uploaded = await uploadDocument(activeNgo?.id, proofDocType, proofUploadFile)
+        docId = uploaded?.document_id || uploaded?.id
+        docName = proofUploadFile.name
+      } else {
+        const found = vaultDocuments.find((d) => d.id === selectedVaultDocId)
+        docName = found?.file_url?.split('/')?.pop() || found?.doc_type || 'NGO Vault Document'
+      }
+
+      const res = await attachProof(proposalData.proposal_id, {
+        claim_text: attachingProofClaim.claim_text,
+        section_key: attachingProofClaim.section_key || activeSectionKey,
+        document_id: docId || null,
+        document_name: docName || null,
+        proof_notes: proofNotes.trim() || null,
+      })
+
+      setProposalData(res)
+      setEditableSections(res.sections || {})
+      setVerificationResults(res.verification_results || [])
+      setFabricationRate(res.fabrication_rate || 0.0)
+      setBatchProposals((prev) => ({ ...prev, [selectedGrantId]: res }))
+      setAttachingProofClaim(null)
+      setActionSuccessMessage('Claim successfully corroborated with document proof!')
+      setTimeout(() => setActionSuccessMessage(null), 3500)
+    } catch (err) {
+      console.error('Failed to attach proof:', err)
+      setError(err.response?.data?.detail || 'Failed to attach document proof.')
+    } finally {
+      setIsAttachingProofSubmitting(false)
+    }
   }
 
   const sectionKeys = Object.keys(editableSections)
@@ -2068,9 +2149,9 @@ export default function ProposalWorkspace({
                               {/* 3. Attach Document Proof */}
                               <button
                                 type="button"
-                                onClick={handleAttachProof}
+                                onClick={() => handleAttachProofOpen(item)}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white border border-slate-300 hover:bg-amber-50 hover:border-amber-400 text-slate-700 hover:text-amber-800 text-[11px] font-semibold transition cursor-pointer shadow-2xs"
-                                title="Upload corroborating audit report or certificate in Document Vault"
+                                title="Attach corroborating audit report or certificate from Document Vault"
                               >
                                 <Paperclip className="size-3 text-amber-600" />
                                 <span>Attach Document Proof</span>
@@ -2257,6 +2338,206 @@ export default function ProposalWorkspace({
                   <>
                     <Trash2 className="size-3.5" />
                     <span>Confirm &amp; Drop Claim</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Action Modal 3: Attach Document Proof */}
+      {attachingProofClaim && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200 animate-fadeIn">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3 text-amber-600">
+                <div className="p-2 bg-amber-100 rounded-full">
+                  <Paperclip className="size-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Attach Vault Proof to Claim
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Corroborate this statement with an official document
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAttachingProofClaim(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* Claim Quote */}
+            <div className="p-3 bg-amber-50/70 rounded-lg text-xs text-amber-950 border border-amber-200">
+              <span className="font-semibold block text-[10px] uppercase tracking-wider text-amber-800 mb-1">
+                Target Claim Statement
+              </span>
+              <p className="italic font-serif">&quot;{attachingProofClaim.claim_text}&quot;</p>
+            </div>
+
+            {/* Source Switch Tabs */}
+            <div className="flex border-b border-slate-200">
+              <button
+                type="button"
+                onClick={() => setProofSourceTab('vault')}
+                className={`py-2 px-3 text-xs font-semibold border-b-2 transition cursor-pointer ${
+                  proofSourceTab === 'vault'
+                    ? 'border-indigo-600 text-indigo-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Existing Vault Documents ({vaultDocuments.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setProofSourceTab('upload')}
+                className={`py-2 px-3 text-xs font-semibold border-b-2 transition cursor-pointer ${
+                  proofSourceTab === 'upload'
+                    ? 'border-indigo-600 text-indigo-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Upload New Document
+              </button>
+            </div>
+
+            {/* Tab 1: Existing Vault Documents */}
+            {proofSourceTab === 'vault' && (
+              <div className="space-y-3">
+                {isLoadingVaultDocuments ? (
+                  <div className="py-6 text-center text-xs text-slate-500">
+                    <div className="size-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                    Loading NGO documents from vault...
+                  </div>
+                ) : vaultDocuments.length === 0 ? (
+                  <div className="py-5 text-center text-xs text-slate-500 bg-slate-50 rounded-lg border border-dashed border-slate-300">
+                    No documents found in vault. Please upload a new document.
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                      Select Corroborating Document
+                    </label>
+                    <div className="max-h-48 overflow-y-auto space-y-2 border border-slate-200 rounded-lg p-2 bg-slate-50/50">
+                      {vaultDocuments.map((doc) => {
+                        const filename = doc.file_url ? doc.file_url.split('/').pop() : doc.doc_type || 'Document'
+                        const isSelected = selectedVaultDocId === doc.id
+                        return (
+                          <div
+                            key={doc.id}
+                            onClick={() => setSelectedVaultDocId(doc.id)}
+                            className={`p-2.5 rounded-lg border cursor-pointer transition text-xs flex items-center justify-between ${
+                              isSelected
+                                ? 'bg-indigo-50 border-indigo-300 text-indigo-900 font-medium'
+                                : 'bg-white border-slate-200 hover:bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <FileText className={`size-4 shrink-0 ${isSelected ? 'text-indigo-600' : 'text-slate-400'}`} />
+                              <span className="truncate">{filename}</span>
+                            </div>
+                            <span className="text-[10px] uppercase font-bold text-slate-500 px-1.5 py-0.5 bg-slate-100 rounded shrink-0">
+                              {doc.doc_type?.replace(/_/g, ' ') || 'Document'}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab 2: Upload New Document */}
+            {proofSourceTab === 'upload' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Document Type
+                  </label>
+                  <select
+                    value={proofDocType}
+                    onChange={(e) => setProofDocType(e.target.value)}
+                    className="w-full text-xs rounded-lg border border-slate-300 p-2 bg-white text-slate-900"
+                  >
+                    <option value="audit_report">Audit Report / Financials</option>
+                    <option value="annual_report">Annual Report</option>
+                    <option value="darpan_certificate">NITI Aayog Darpan Certificate</option>
+                    <option value="reg_80g">80G Certificate</option>
+                    <option value="reg_12a">12A Certificate</option>
+                    <option value="fcra">FCRA Registration</option>
+                    <option value="past_grant_proof">Past Grant Completion Report</option>
+                    <option value="other_proof">Other Supporting Proof</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                    Select File (PDF / DOCX)
+                  </label>
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.txt"
+                    onChange={(e) => setProofUploadFile(e.target.files?.[0] || null)}
+                    className="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer border border-slate-200 rounded-lg p-1.5 bg-slate-50/50"
+                  />
+                  {proofUploadFile && (
+                    <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                      Ready to upload: {proofUploadFile.name} ({(proofUploadFile.size / 1024).toFixed(1)} KB)
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Optional notes */}
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                Proof Notes / Citation (Optional)
+              </label>
+              <input
+                type="text"
+                value={proofNotes}
+                onChange={(e) => setProofNotes(e.target.value)}
+                placeholder="e.g. Page 4, Section 2.1 — Audited child beneficiary count"
+                className="w-full text-xs rounded-lg border border-slate-300 p-2 text-slate-900 bg-white"
+              />
+            </div>
+
+            {/* Modal actions */}
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setAttachingProofClaim(null)}
+                className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={
+                  isAttachingProofSubmitting ||
+                  (proofSourceTab === 'vault' && !selectedVaultDocId && vaultDocuments.length > 0) ||
+                  (proofSourceTab === 'upload' && !proofUploadFile)
+                }
+                onClick={handleAttachProofConfirm}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-xs transition cursor-pointer disabled:opacity-50"
+              >
+                {isAttachingProofSubmitting ? (
+                  <>
+                    <div className="size-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Attaching Proof &amp; Corroborating...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCheck className="size-3.5" />
+                    <span>Corroborate &amp; Verify Claim</span>
                   </>
                 )}
               </button>

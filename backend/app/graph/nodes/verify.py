@@ -358,7 +358,7 @@ def verify_claims(state: GrantSetuState) -> GrantSetuState:
 
         evidence_text = "\n\n".join(evidence_snippets)
         claims_formatted = "\n".join([
-            f"- [CLAIM ID {idx} | SEC: {c.get('section_key') or c.get('section', 'general')}]: {c.get('claim_text')}"
+            f"- [CLAIM_INDEX_{idx} | SEC: {c.get('section_key') or c.get('section', 'general')}]: \"{c.get('claim_text')}\""
             for idx, c in enumerate(claims_for_llm)
         ])
 
@@ -380,7 +380,7 @@ Respond ONLY with valid JSON matching this schema:
 {{
   "verification_results": [
     {{
-      "claim_text": "<exact claim text>",
+      "claim_index": <int matching CLAIM_INDEX>,
       "verdict": "supported" | "partially_supported" | "unsupported",
       "evidence_span": "<exact quote from evidence or explanation>",
       "chunk_id": "<exact CHUNK_ID string from evidence if supported, else empty string>",
@@ -396,28 +396,83 @@ Respond ONLY with valid JSON matching this schema:
             parsed = parse_json_response(raw_response)
             llm_results = parsed.get("verification_results", [])
 
+            processed_indices = set()
             for item in llm_results:
-                ctext = item.get("claim_text", "")
-                # Find original claim to retain section_key
-                matching_orig = next((c for c in claims_for_llm if c.get("claim_text", "").lower() in ctext.lower() or ctext.lower() in c.get("claim_text", "").lower()), None)
-                if matching_orig:
-                    item["section_key"] = matching_orig.get("section_key") or matching_orig.get("section")
+                c_idx = item.get("claim_index")
+                orig_c = None
+                if isinstance(c_idx, int) and 0 <= c_idx < len(claims_for_llm):
+                    orig_c = claims_for_llm[c_idx]
+                    processed_indices.add(c_idx)
+                else:
+                    ctext = str(item.get("claim_text", "")).lower()
+                    for idx, c in enumerate(claims_for_llm):
+                        if idx not in processed_indices:
+                            c_raw = c.get("claim_text", "").lower()
+                            if c_raw in ctext or ctext in c_raw:
+                                orig_c = c
+                                processed_indices.add(idx)
+                                break
+
+                if not orig_c:
+                    continue
+
+                sec_key = orig_c.get("section_key") or orig_c.get("section")
+                claim_text = orig_c.get("claim_text", "")
 
                 # Match chunk_id to chunks
-                cid = item.get("chunk_id", "").strip()
+                cid = str(item.get("chunk_id", "")).strip()
                 matched_chunk = next((c for c in chunks if str(c.get("chunk_id")) == cid), None)
                 if not matched_chunk and item.get("evidence_span"):
                     matched_chunk = _find_best_chunk(chunks, item["evidence_span"])
 
-                if matched_chunk:
-                    item["evidence_chunk_id"] = str(matched_chunk["chunk_id"])
-                    item["document_name"] = matched_chunk.get("document_name") or "Document_Vault_Proof.pdf"
-                    item["document_id"] = str(matched_chunk["document_id"]) if matched_chunk.get("document_id") else None
-                    item["doc_type"] = matched_chunk.get("doc_type") or "vault_document"
-                    item["chunk_section"] = matched_chunk.get("section_title")
-                    item["chunk_text"] = matched_chunk.get("chunk_text")
+                res_entry = {
+                    "section_key": sec_key,
+                    "claim_text": claim_text,
+                    "verdict": item.get("verdict") or "unsupported",
+                    "evidence_span": item.get("evidence_span") or "Evaluation by NLI entailment gate.",
+                    "confidence": float(item.get("confidence") or 0.95),
+                }
 
-                final_results.append(item)
+                if matched_chunk:
+                    res_entry.update({
+                        "evidence_chunk_id": str(matched_chunk["chunk_id"]),
+                        "document_name": matched_chunk.get("document_name") or "Document_Vault_Proof.pdf",
+                        "document_id": str(matched_chunk["document_id"]) if matched_chunk.get("document_id") else None,
+                        "doc_type": matched_chunk.get("doc_type") or "vault_document",
+                        "chunk_section": matched_chunk.get("section_title"),
+                        "chunk_text": matched_chunk.get("chunk_text"),
+                    })
+
+                final_results.append(res_entry)
+
+            # For any claims not returned by LLM, apply deterministic keyword fallback
+            for idx, c in enumerate(claims_for_llm):
+                if idx not in processed_indices:
+                    sec_key = c.get("section_key") or c.get("section")
+                    txt = c.get("claim_text", "")
+                    matched_chunk = _find_best_chunk(chunks, txt)
+                    if matched_chunk:
+                        final_results.append({
+                            "section_key": sec_key,
+                            "claim_text": txt,
+                            "verdict": "supported",
+                            "evidence_span": f"Substantiated in {matched_chunk.get('document_name', 'vault document')}",
+                            "evidence_chunk_id": str(matched_chunk["chunk_id"]),
+                            "document_name": matched_chunk.get("document_name"),
+                            "document_id": str(matched_chunk["document_id"]) if matched_chunk.get("document_id") else None,
+                            "doc_type": matched_chunk.get("doc_type"),
+                            "chunk_section": matched_chunk.get("section_title"),
+                            "chunk_text": matched_chunk.get("chunk_text"),
+                            "confidence": 0.85,
+                        })
+                    else:
+                        final_results.append({
+                            "section_key": sec_key,
+                            "claim_text": txt,
+                            "verdict": "unsupported",
+                            "evidence_span": "Not corroborated by uploaded vault records",
+                            "confidence": 0.85,
+                        })
         except Exception as e:
             logger.warning("LLM verification call failed (%s); applying strict keyword matching...", e)
             for c in claims_for_llm:
